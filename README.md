@@ -1,3 +1,4 @@
-# Message-Board-V1-Phinma-Upang
-Wala nako maisip ilagay dito 
+# Message-Board-V0.0.2-Phinma-Upang
 (Private Project)
+
+
