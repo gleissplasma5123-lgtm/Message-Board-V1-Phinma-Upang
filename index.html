@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Firebase Message Board</title>
+<link rel="stylesheet" href="style.css">
+<script type="module" src="script.js"></script>
+</head>
+
+<!-- PHINMA MESSAGE BOARD (WEB)-->
+<!--
+
+    ||===================================||
+    ||  Project by: Group 1(BSIT2-05)    ||
+    || DESIGNED BY: ALDRICH C. NAVARRO   ||
+    ||                                   ||
+    || Members:                          ||
+    || Colorada, Wrench                  ||
+    || Maranion, Rea Regie               ||
+    || Monje, Theo Jibrael               ||
+    || Miraflores, Julie Ann             ||
+    || Navarro, Aldrich                  ||
+    || Padilla, Steven                   ||
+    ||===================================||
+
+ Version 0.0.2
+ For 02/24/26 Milestone Checking
+
+-->
+
+<body>
+
+<div class="appWrapper">
+
+  <h1 class="mainTitle">Phinma Message Board</h1>
+
+  <!-- TOP BAR -->
+  <div id="topBar" class="hidden">
+      <button id="homeBtn">🏠</button>
+      <button id="notifBtn">🔔 <span id="notifCount"></span></button>
+      <button id="adminConsoleBtn" class="hidden">⚙ Admin</button>
+  </div>
+
+  <!-- LOGIN -->
+  <div class="container" id="loginScreen">
+      <h2>Login</h2>
+      <input id="email" placeholder="Email">
+      <input id="password" type="Password">
+      <button id="loginBtn">Login</button>
+  </div>
+
+  <!-- BOARDS -->
+  <div class="container hidden" id="boardScreen">
+     <h2>Message Boards</h2>
+     <p id="userInfo" class="small"></p>
+
+    <!-- Create Board -->
+     <input id="newBoardInput" placeholder="Create new board">
+     <button id="createBoardBtn">Create Board</button>
+
+     <div id="boardList"></div>
+     <button id="logoutBtn">Logout</button>
+  </div>
+
+  <!-- THREADS -->
+  <div class="container hidden" id="threadScreen">
+      <button id="backBoards">← Back</button>
+      <h2 id="boardTitle"></h2>
+      <div id="threadList"></div>
+      <input id="newThreadInput" placeholder="Create new thread">
+      <button id="createThreadBtn">Create Thread</button>
+  </div>
+
+  <!-- MESSAGES -->
+  <div class="container hidden" id="messageScreen">
+     <button id="backThreads">← Back</button>
+     <h2 id="threadTitle"></h2>
+
+     <div id="messageList"></div>
+
+     <textarea id="messageInput" placeholder="Type message..."></textarea>
+
+     <input type="file" id="imageInput" accept="image/*">
+
+     <button id="sendBtn">Send</button>
+  </div>
+
+  <!-- NOTIFICATIONS -->
+  <div class="container hidden" id="notifScreen">
+      <button id="backHome">← Home</button>
+      <h2>Notifications</h2>
+      <div id="notifList"></div>
+  </div>
+  
+  <!-- Dashboard(Admin)-->
+  <div class="container hidden" id="adminScreen">
+      <h2>Admin Dashboard</h2>
+
+     <button id="viewStatsBtn">View Stats</button>
+     <button id="manageUsersBtn">Manage Users</button>
+     <button id="moderationBtn">Moderation</button>
+
+     <button id="backFromAdmin">← Back</button>
+  </div>
+
+</div>
+
+</body>
+</html>
