@@ -1,4 +1,4 @@
-/* ================= IMPORTS ================= */
+/* ================= FIREBASE IMPORTS ================= */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 
@@ -24,12 +24,6 @@ import {
   doc
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-import {
-  getStorage,
-  ref,
-  uploadBytes,
-  getDownloadURL
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 /* ================= FIREBASE CONFIG ================= */
 
 const firebaseConfig = {
@@ -46,24 +40,29 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-/* ================= ADMIN  ================= */
+/* ================= ADMIN SYSTEM ================= */
 
 const ADMIN_EMAILS = ["admin@test.com"]; // CHANGABLE
 const isAdmin = () => ADMIN_EMAILS.includes(currentUser?.email);
 
-/* ================= STATE DEFINRE ================= */
+/* ================= STATE ================= */
 
 let currentUser;
 let currentBoard;
 let currentThread;
 let unsubMessages = null;
 
-/* ================= SCREEN SWITCH ================= */
+/* ================= ELEMENT HELPERS ================= */
 
-const screens = ["loginScreen","boardScreen","threadScreen","messageScreen","notifScreen"];
+const screens = [
+  "loginScreen",
+  "boardScreen",
+  "threadScreen",
+  "messageScreen",
+  "notifScreen"
+];
 
-const show = id => {
-
+const show = (id) => {
   screens.forEach(s =>
     document.getElementById(s).classList.add("hidden")
   );
@@ -88,7 +87,10 @@ loginBtn.onclick = async () => {
 logoutBtn.onclick = () => signOut(auth);
 
 onAuthStateChanged(auth, user => {
-  if (!user) return show("loginScreen");
+  if (!user) {
+    topBar.classList.add("hidden");
+    return show("loginScreen");
+  }
 
   currentUser = user;
 
@@ -114,7 +116,7 @@ createBoardBtn.onclick = async () => {
     createdAt: serverTimestamp()
   });
 
-  newBoardInput.value="";
+  newBoardInput.value = "";
 };
 
 function loadBoards() {
@@ -150,37 +152,37 @@ function loadBoards() {
   });
 }
 
-function openBoard(id,name){
-  currentBoard=id;
-  boardTitle.textContent=name;
+function openBoard(id, name) {
+  currentBoard = id;
+  boardTitle.textContent = name;
   loadThreads();
   show("threadScreen");
 }
 
 /* ================= THREADS ================= */
 
-function loadThreads(){
-  const q=query(
+function loadThreads() {
+  const q = query(
     collection(db,"threads"),
     where("board","==",currentBoard)
   );
 
-  onSnapshot(q,snap=>{
-    threadList.innerHTML="";
+  onSnapshot(q, snap => {
+    threadList.innerHTML = "";
 
-    snap.forEach(d=>{
-      const div=document.createElement("div");
-      div.className="item";
-      div.textContent=d.data().name;
+    snap.forEach(d => {
+      const div = document.createElement("div");
+      div.className = "item";
+      div.textContent = d.data().name;
 
-      div.onclick=()=>openThread(d.id,d.data().name);
+      div.onclick = () => openThread(d.id, d.data().name);
 
-      if(isAdmin()){
-        const del=document.createElement("button");
-        del.textContent="Delete";
-        del.style.width="auto";
+      if (isAdmin()) {
+        const del = document.createElement("button");
+        del.textContent = "Delete";
+        del.style.width = "auto";
 
-        del.onclick=async(e)=>{
+        del.onclick = async (e) => {
           e.stopPropagation();
           await deleteDoc(doc(db,"threads",d.id));
         };
@@ -193,53 +195,53 @@ function loadThreads(){
   });
 }
 
-createThreadBtn.onclick=async()=>{
-  if(!newThreadInput.value.trim())return;
+createThreadBtn.onclick = async () => {
+  if (!newThreadInput.value.trim()) return;
 
-  await addDoc(collection(db,"threads"),{
-    board:currentBoard,
-    name:newThreadInput.value
+  await addDoc(collection(db,"threads"), {
+    board: currentBoard,
+    name: newThreadInput.value
   });
 
-  newThreadInput.value="";
+  newThreadInput.value = "";
 };
 
-/* ================= MSG ================= */
+/* ================= MESSAGES ================= */
 
-function openThread(id,name){
-  currentThread=id;
-  threadTitle.textContent=name;
+function openThread(id, name) {
+  currentThread = id;
+  threadTitle.textContent = name;
   show("messageScreen");
 
-  if(unsubMessages)unsubMessages();
+  if (unsubMessages) unsubMessages();
 
-  const q=query(
+  const q = query(
     collection(db,"messages"),
     where("thread","==",currentThread),
     orderBy("time","asc")
   );
 
-  unsubMessages=onSnapshot(q,snap=>{
-    messageList.innerHTML="";
+  unsubMessages = onSnapshot(q, snap => {
+    messageList.innerHTML = "";
 
-    snap.forEach(d=>{
-      const m=d.data();
+    snap.forEach(d => {
+      const m = d.data();
 
-      const div=document.createElement("div");
-      div.className=`message ${m.author===currentUser.email?"mine":"other"}`;
+      const div = document.createElement("div");
+      div.className =
+        `message ${m.author===currentUser.email?"mine":"other"}`;
 
-      div.innerHTML=`
+      div.innerHTML = `
         <strong>${m.author}</strong><br>
-        ${m.text?`<p>${m.text}</p>`:""}
-        ${m.image?`<img src="${m.image}" style="max-width:100%;margin-top:8px;border-radius:8px;">`:""}
+        ${m.text ? `<p>${m.text}</p>` : ""}
       `;
 
-      if(isAdmin()){
-        const del=document.createElement("button");
-        del.textContent="Delete";
-        del.style.width="auto";
+      if (isAdmin()) {
+        const del = document.createElement("button");
+        del.textContent = "Delete";
+        del.style.width = "auto";
 
-        del.onclick=async()=>{
+        del.onclick = async () => {
           await deleteDoc(doc(db,"messages",d.id));
         };
 
@@ -249,43 +251,33 @@ function openThread(id,name){
       messageList.appendChild(div);
     });
 
-    messageList.scrollTop=messageList.scrollHeight;
+    messageList.scrollTop = messageList.scrollHeight;
   });
 }
 
-sendBtn.onclick=async()=>{
+sendBtn.onclick = async () => {
+  if (!messageInput.value.trim()) return;
 
-  if(!messageInput.value.trim() && !imageInput.files.length)return;
-
-  let imageUrl=null;
-
-  if(imageInput.files.length>0){
-    const file=imageInput.files[0];
-    const storageRef=ref(storage,`images/${Date.now()}_${file.name}`);
-
-    await uploadBytes(storageRef,file);
-    imageUrl=await getDownloadURL(storageRef);
-  }
-
-  await addDoc(collection(db,"messages"),{
-    thread:currentThread,
-    author:currentUser.email,
-    text:messageInput.value,
-    image:imageUrl,
-    time:serverTimestamp()
+  await addDoc(collection(db,"messages"), {
+    thread: currentThread,
+    author: currentUser.email,
+    text: messageInput.value,
+    time: serverTimestamp()
   });
 
-  messageInput.value="";
-  imageInput.value="";
+  messageInput.value = "";
 };
 
-/* ================= NAV ================= */
+/* ================= NAVIGATION ================= */
 
-backBoards.onclick=()=>show("boardScreen");
-backThreads.onclick=()=>show("threadScreen");
-homeBtn.onclick=()=>show("boardScreen");
-notifBtn.onclick=()=>show("notifScreen");
-backHome.onclick=()=>show("boardScreen");
+backBoards.onclick = () => show("boardScreen");
+backThreads.onclick = () => show("threadScreen");
+homeBtn.onclick = () => show("boardScreen");
+notifBtn.onclick = () => show("notifScreen");
+backHome.onclick = () => show("boardScreen");
+
+/* ================= ADMIN CONSOLE ================= */
+
 adminConsoleBtn.onclick = () => {
   window.open("https://console.firebase.google.com/", "_blank");
 };
