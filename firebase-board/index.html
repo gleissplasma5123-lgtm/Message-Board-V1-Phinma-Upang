@@ -23,16 +23,14 @@
     || Padilla, Steven                   ||
     ||===================================||
 
- Version 0.0.2
- For 02/24/26 Milestone Checking
+ Version 0.0.3
+ Userboard integrated
 
 -->
 
 <body>
 
 <div class="appWrapper">
-
-  <h1 class="mainTitle">Phinma Message Board</h1>
 
   <!-- TOP BAR -->
   <div id="topBar" class="hidden">
@@ -42,68 +40,223 @@
   </div>
 
   <!-- LOGIN -->
-  <div class="container" id="loginScreen">
-      <h2>Login</h2>
-      <input id="email" placeholder="Email">
-      <input id="password" type="Password">
-      <button id="loginBtn">Login</button>
+  <div id="loginScreen" class="hidden">
+    <div class="login-hero">
+      <div class="wave-top">
+        <svg viewBox="0 0 1440 220" preserveAspectRatio="none">
+          <path fill="#1A5849" d="M0,0H1440V120C1200,180,800,160,0,220Z"></path>
+          <path fill="#6BBFB5" opacity="0.9" d="M0,80C300,160,700,40,1440,120V220H0Z"></path>
+          <path fill="#8ED7D0" opacity="0.8" d="M0,120C200,200,900,100,1440,160V220H0Z"></path>
+        </svg>
+      </div>
+
+      <div class="login-content">
+        <div class="welcome-panel">
+          <img class="logo" src="https://placehold.co/120x120" alt="Logo">
+          <div class="welcome-title">
+            Welcome,<br>PHINMA Flames
+          </div>
+        </div>
+
+        <div class="login-card">
+          <div class="form-label">Email</div>
+          <input id="email" class="field" type="email" placeholder="Enter your phinma email">
+
+          <div class="form-label">Password</div>
+          <input id="password" class="field" type="password" placeholder="Enter your password">
+          
+          <button id="loginBtn" class="btn-primary">Log In</button>
+
+          <div class="text-muted">Don't have an account yet?</div>
+          <button id="goRegisterBtn" class="btn-outline">Register</button>
+        </div>
+      </div>
+
+      <div class="footer-bar"></div>
+    </div>
   </div>
 
+  <!-- REGISTER -->
+  <div id="registerScreen" class="hidden">
+    <div class="reg-hero">
+      <div class="wave-top">
+        <svg viewBox="0 0 1440 220" preserveAspectRatio="none">
+          <path fill="#1A5849" d="M0,0H1440V120C1200,180,800,160,0,220Z"></path>
+          <path fill="#6BBFB5" opacity="0.9" d="M0,80C300,160,700,40,1440,120V220H0Z"></path>
+          <path fill="#8ED7D0" opacity="0.8" d="M0,120C200,200,900,100,1440,160V220H0Z"></path>
+        </svg>
+      </div>
+      <img class="reg-logo" src="https://placehold.co/120x120" alt="Logo">
+      <div class="reg-card">
+        <input id="registerEmail" class="reg-field" type="email" placeholder="Enter Phinma email">
+        <input id="registerUsername" class="reg-field" type="text" placeholder="Enter Username">
+        <input id="registerPassword" class="reg-field" type="password" placeholder="Enter Password">
+        <button id="registerBtn" class="reg-btn">Register</button>
+        <button id="backToLoginBtn" class="reg-btn-outline">Back to Login</button>
+      </div>
+      <div class="footer-bar"></div>
+    </div>
+  </div>
+
+  <!-- ===================== USERBOARD ===================== -->
+  <div id="userboardScreen" class="hidden">
+
+    <!-- Top Nav Bar -->
+    <div class="ub-navbar">
+      <div class="ub-navbar-left">
+        <img class="ub-nav-logo" src="https://placehold.co/48x48" alt="Logo">
+        <span class="ub-nav-title">PHINMA Flames</span>
+      </div>
+      <div class="ub-navbar-center">
+        <div class="ub-search-wrap">
+          <input class="ub-search" id="ubSearchInput" type="text" placeholder="Search boards, threads...">
+          <span class="ub-search-icon">🔍</span>
+        </div>
+      </div>
+      <div class="ub-navbar-right">
+        <div class="ub-notif-wrap">
+          <button class="ub-icon-btn" id="ubNotifBtn">🔔</button>
+          <span class="ub-badge" id="ubNotifBadge">67</span>
+        </div>
+        <div class="ub-avatar-wrap" id="ubAvatarWrap">
+          <img class="ub-avatar" src="https://placehold.co/40x40" alt="User Avatar" id="ubAvatar">
+        </div>
+        <button class="ub-logout-btn" id="ubLogoutBtn">Log Out</button>
+      </div>
+    </div>
+
+    <!-- Content Area -->
+    <div class="ub-body">
+
+      <!-- Sidebar (no Bookmarks, no Notifications) -->
+      <aside class="ub-sidebar">
+        <div class="ub-sidebar-section">
+          <div class="ub-sidebar-label">Navigation</div>
+          <button class="ub-side-btn active" id="ubGoBoards">📋 Message Boards</button>
+          <button class="ub-side-btn" id="ubGoCategories">🗂 Categories</button>
+        </div>
+        <div class="ub-sidebar-section">
+          <div class="ub-sidebar-label">Account</div>
+          <button class="ub-side-btn" id="ubGoProfile">👤 My Profile</button>
+          <button class="ub-side-btn hidden" id="ubGoAdmin">⚙ Admin Panel</button>
+        </div>
+        <div class="ub-user-card">
+          <img class="ub-user-card-avatar" src="https://placehold.co/48x48" alt="avatar" id="ubSideAvatar">
+          <div class="ub-user-card-info">
+            <div class="ub-user-card-name" id="ubSideUsername">Loading...</div>
+            <div class="ub-user-card-email" id="ubSideEmail">loading@phinma.edu</div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Panel -->
+      <main class="ub-main">
+
+        <!-- Welcome Banner -->
+        <div class="ub-banner">
+          <div class="ub-banner-text">
+            <div class="ub-banner-greeting" id="ubGreeting">Good morning 👋</div>
+            <div class="ub-banner-sub">Welcome back to PHINMA Message Board</div>
+          </div>
+          <div class="ub-banner-art">🔥</div>
+        </div>
+
+
+
+        <!-- Recent Boards -->
+        <div class="ub-section-header">
+          <span>Recent Boards</span>
+          <button class="ub-view-all" id="ubViewAllBoards">View All →</button>
+        </div>
+        <div class="ub-boards-grid" id="ubBoardsGrid">
+          <div class="ub-empty">No boards yet. Be the first to create one!</div>
+        </div>
+
+        <!-- Create Board -->
+        <div class="ub-create-row">
+          <input class="ub-create-input" id="ubNewBoardInput" placeholder="+ Create a new board...">
+          <button class="ub-create-btn" id="ubCreateBoardBtn">Create</button>
+        </div>
+
+      </main>
+    </div>
+  </div>
+  <!-- ===================== END USERBOARD ===================== -->
+
   <!-- BOARDS -->
-  <div class="container hidden" id="boardScreen">
-     <h2>Message Boards</h2>
-     <p id="userInfo" class="small"></p>
-
-    <!-- Create Board -->
-     <input id="newBoardInput" placeholder="Create new board">
-     <button id="createBoardBtn">Create Board</button>
-
-     <div id="boardList"></div>
-     <button id="logoutBtn">Logout</button>
+  <div class="screen-page hidden" id="boardScreen">
+    <div class="sp-navbar">
+      <button class="sp-back-btn" id="backFromBoards">← Back</button>
+      <span class="sp-title">Message Boards</span>
+      <div class="sp-create-inline">
+        <input class="sp-inline-input" id="newBoardInput" placeholder="New board name...">
+        <button class="sp-inline-btn" id="createBoardBtn">+ Create</button>
+      </div>
+    </div>
+    <div class="sp-body">
+      <div class="sp-grid" id="boardList"></div>
+    </div>
   </div>
 
   <!-- THREADS -->
-  <div class="container hidden" id="threadScreen">
-      <button id="backBoards">← Back</button>
-      <h2 id="boardTitle"></h2>
-      <div id="threadList"></div>
-      <input id="newThreadInput" placeholder="Create new thread">
-      <button id="createThreadBtn">Create Thread</button>
+  <div class="screen-page hidden" id="threadScreen">
+    <div class="sp-navbar">
+      <button class="sp-back-btn" id="backBoards">← Back</button>
+      <span class="sp-title" id="boardTitle">Threads</span>
+      <div class="sp-create-inline">
+        <input class="sp-inline-input" id="newThreadInput" placeholder="New thread name...">
+        <button class="sp-inline-btn" id="createThreadBtn">+ Create</button>
+      </div>
+    </div>
+    <div class="sp-body">
+      <div class="sp-list" id="threadList"></div>
+    </div>
   </div>
 
   <!-- MESSAGES -->
-  <div class="container hidden" id="messageScreen">
-     <button id="backThreads">← Back</button>
-     <h2 id="threadTitle"></h2>
-
-     <div id="messageList"></div>
-
-     <textarea id="messageInput" placeholder="Type message..."></textarea>
-
-     <input type="file" id="imageInput" accept="image/*">
-
-     <button id="sendBtn">Send</button>
+  <div class="screen-page hidden" id="messageScreen">
+    <div class="sp-navbar">
+      <button class="sp-back-btn" id="backThreads">← Back</button>
+      <span class="sp-title" id="threadTitle">Messages</span>
+    </div>
+    <div class="sp-messages-body">
+      <div id="messageList"></div>
+    </div>
+    <div class="sp-message-input-bar">
+      <textarea class="sp-msg-textarea" id="messageInput" placeholder="Type a message..."></textarea>
+      <button class="sp-send-btn" id="sendBtn">Send</button>
+    </div>
   </div>
 
   <!-- NOTIFICATIONS -->
-  <div class="container hidden" id="notifScreen">
-      <button id="backHome">← Home</button>
-      <h2>Notifications</h2>
-      <div id="notifList"></div>
+  <div class="screen-page hidden" id="notifScreen">
+    <div class="sp-navbar">
+      <button class="sp-back-btn" id="backHome">← Back</button>
+      <span class="sp-title">Notifications</span>
+    </div>
+    <div class="sp-body">
+      <div class="sp-empty-state" id="notifList">No notifications yet.</div>
+    </div>
   </div>
-  
-  <!-- Dashboard(Admin)-->
-  <div class="container hidden" id="adminScreen">
-      <h2>Admin Dashboard</h2>
 
-     <button id="viewStatsBtn">View Stats</button>
-     <button id="manageUsersBtn">Manage Users</button>
-     <button id="moderationBtn">Moderation</button>
-
-     <button id="backFromAdmin">← Back</button>
+  <!-- Dashboard(Admin) -->
+  <div class="screen-page hidden" id="adminScreen">
+    <div class="sp-navbar">
+      <button class="sp-back-btn" id="backFromAdmin">← Back</button>
+      <span class="sp-title">Admin Dashboard</span>
+    </div>
+    <div class="sp-body">
+      <div class="sp-admin-grid">
+        <button class="sp-admin-card" id="viewStatsBtn">📊<span>View Stats</span></button>
+        <button class="sp-admin-card" id="manageUsersBtn">👥<span>Manage Users</span></button>
+        <button class="sp-admin-card" id="moderationBtn">🛡️<span>Moderation</span></button>
+      </div>
+    </div>
   </div>
+
+  <!-- hidden legacy logoutBtn needed by script -->
+  <button id="logoutBtn" style="display:none"></button>
 
 </div>
-
 </body>
 </html>
