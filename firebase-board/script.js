@@ -11,13 +11,6 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
 import {
-  getStorage,
-  ref,
-  uploadBytes,
-  getDownloadURL
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
-
-import {
   getFirestore,
   collection,
   addDoc,
@@ -47,7 +40,32 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const storage = getStorage(app);
+
+/* ================= IMAGEKIT CONFIG ================= */
+
+async function uploadToImageKit(file) {
+
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("fileName", file.name);
+
+  const res = await fetch("https://upload.imagekit.io/api/v1/files/upload", {
+    method: "POST",
+    headers: {
+      Authorization: "Basic " + btoa("public_YJcnOCqlESuiLxcybkWCsh5j+Ms=:")
+    },
+    body: formData
+  });
+
+  const data = await res.json();
+
+  if (!data.url) {
+    console.error("ImageKit upload failed", data);
+    return null;
+  }
+
+  return data.url;
+}
 
 /* ================= ADMIN SYSTEM ================= */
 
@@ -440,15 +458,19 @@ window.addEventListener("DOMContentLoaded", () => {
 
       let mediaURL = null;
       let mediaType = null;
+
       if (msgSelectedImage) {
+
         sendBtn.textContent = "⏳";
         sendBtn.disabled = true;
+
         const isVideo = msgSelectedImage.type.startsWith("video/");
         mediaType = isVideo ? "video" : "image";
+
         const folder = isVideo ? "videos" : "images";
-        const storageRef = ref(storage, `messages/${folder}/${currentThread}/${Date.now()}_${msgSelectedImage.name}`);
-        const snapshot = await uploadBytes(storageRef, msgSelectedImage);
-        mediaURL = await getDownloadURL(snapshot.ref);
+
+        mediaURL = await uploadToImageKit(msgSelectedImage);
+
         sendBtn.textContent = "Send";
         sendBtn.disabled = false;
       }
