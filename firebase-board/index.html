@@ -6,44 +6,53 @@
 <link rel="stylesheet" href="style.css">
 <script type="module" src="script.js"></script>
 </head>
-
 <body>
-
 <div class="appWrapper">
 
-  <!-- TOP BAR -->
-  <div id="topBar" class="hidden">
-      <button id="homeBtn">🏠</button>
-      <button id="notifBtn">🔔 <span id="notifCount"></span></button>
-      <button id="adminConsoleBtn" class="hidden">⚙ Admin</button>
+  <!-- LOADER -->
+  <div id="appLoader" style="position:fixed;inset:0;background:#1A5849;display:flex;align-items:center;justify-content:center;z-index:9999;">
+    <div style="text-align:center;">
+      <div style="width:48px;height:48px;border:4px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 16px;"></div>
+      <div style="color:white;font-size:14px;letter-spacing:1px;font-family:Arial,sans-serif;">PHINMA Message Board</div>
+    </div>
   </div>
+  <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 
   <!-- LOGIN -->
   <div id="loginScreen" class="hidden">
     <div class="login-hero">
-      <div class="wave-top">
-        <svg viewBox="0 0 1440 220" preserveAspectRatio="none">
-          <path fill="#1A5849" d="M0,0H1440V120C1200,180,800,160,0,220Z"></path>
-          <path fill="#6BBFB5" opacity="0.9" d="M0,80C300,160,700,40,1440,120V220H0Z"></path>
-          <path fill="#8ED7D0" opacity="0.8" d="M0,120C200,200,900,100,1440,160V220H0Z"></path>
-        </svg>
-      </div>
-      <div class="login-content">
-        <div class="welcome-panel">
-          <img class="logo" src="https://placehold.co/120x120" alt="Logo">
-          <div class="welcome-title">Welcome,<br>PHINMA Flames</div>
+      <div class="login-top-bg">
+        <div class="login-top-content">
+          <img class="login-logo" src="https://placehold.co/90x90" alt="Logo">
+          <div class="login-app-name">PHINMA</div>
+          <div class="login-app-sub">Message Board</div>
         </div>
+        <div class="login-wave">
+          <svg viewBox="0 0 1440 120" preserveAspectRatio="none">
+            <path fill="#ffffff" d="M0,60 C360,120 1080,0 1440,60 L1440,120 L0,120 Z"></path>
+          </svg>
+        </div>
+      </div>
+      <div class="login-body">
         <div class="login-card">
-          <div class="form-label">Email</div>
-          <input id="email" class="field" type="email" placeholder="Enter your phinma email">
-          <div class="form-label">Password</div>
-          <input id="password" class="field" type="password" placeholder="Enter your password">
-          <button id="loginBtn" class="btn-primary">Log In</button>
-          <div class="text-muted">Don't have an account yet?</div>
-          <button id="goRegisterBtn" class="btn-outline">Register</button>
+          <div class="login-card-title">Welcome Back!</div>
+          <div class="login-card-sub">Sign in to continue your journey</div>
+          <div class="login-input-wrap">
+            <span class="login-input-icon">✉</span>
+            <input id="email" class="login-field" type="email" placeholder="Email Address">
+          </div>
+          <div class="login-input-wrap">
+            <span class="login-input-icon">🔒</span>
+            <input id="password" class="login-field" type="password" placeholder="Password">
+          </div>
+          <button id="loginBtn" class="login-btn-primary">Log In</button>
+          <div class="login-divider"><span>or</span></div>
+          <div class="login-register-row">
+            Don't have an account? <button id="goRegisterBtn" class="login-link-btn">Register</button>
+          </div>
         </div>
+        <div class="login-footer-text">Making Lives Better Through Education</div>
       </div>
-      <div class="footer-bar"></div>
     </div>
   </div>
 
@@ -63,9 +72,9 @@
         <input id="registerUsername" class="reg-field" type="text" placeholder="Enter Username">
         <input id="registerPassword" class="reg-field" type="password" placeholder="Enter Password">
         <button id="registerBtn" class="reg-btn">Register</button>
+        <div id="otpSection" class="hidden"></div>
         <button id="backToLoginBtn" class="reg-btn-outline">Back to Login</button>
       </div>
-      <div class="footer-bar"></div>
     </div>
   </div>
 
@@ -73,50 +82,56 @@
   <div id="userboardScreen" class="hidden">
     <div class="ub-navbar">
       <div class="ub-navbar-left">
-        <img class="ub-nav-logo" src="https://placehold.co/48x48" alt="Logo">
-        <span class="ub-nav-title">PHINMA Flames</span>
+        <img class="ub-nav-logo" src="https://placehold.co/40x40" alt="Logo">
+        <div class="ub-nav-info">
+          <span class="ub-nav-title">PHINMA</span>
+          <span class="ub-nav-subtitle">University of Pampanga</span>
+        </div>
       </div>
       <div class="ub-navbar-center">
         <div class="ub-search-wrap">
-          <input class="ub-search" id="ubSearchInput" type="text" placeholder="Search boards..." autocomplete="off">
-          <span class="ub-search-icon" id="ubSearchClear">🔍</span>
+          <span class="ub-search-icon-left">🔍</span>
+          <input class="ub-search" id="ubSearchInput" type="text" placeholder="Search boards, threads..." autocomplete="off">
+          <span class="ub-search-icon" id="ubSearchClear">✕</span>
         </div>
-        <!-- Dropdown is OUTSIDE the search-wrap but inside navbar-center -->
         <div class="ub-search-dropdown hidden" id="ubSearchDropdown"></div>
       </div>
       <div class="ub-navbar-right">
         <div class="ub-notif-wrap">
           <button class="ub-icon-btn" id="ubNotifBtn">🔔</button>
-          <span class="ub-badge" id="ubNotifBadge">67</span>
+          <span class="ub-badge" id="ubNotifBadge" style="display:none;">0</span>
         </div>
-        <div class="ub-avatar-wrap" id="ubAvatarWrap">
-          <img class="ub-avatar" src="https://placehold.co/40x40" alt="User Avatar" id="ubAvatar">
-        </div>
+        <span class="ub-hi-text" id="ubHiText">Hi, user!</span>
         <button class="ub-logout-btn" id="ubLogoutBtn">Log Out</button>
       </div>
     </div>
-
     <div class="ub-body">
       <aside class="ub-sidebar">
         <div class="ub-sidebar-section">
           <div class="ub-sidebar-label">Navigation</div>
-          <button class="ub-side-btn active" id="ubGoBoards">📋 Message Boards</button>
-          <button class="ub-side-btn" id="ubGoCategories">🗂 Categories</button>
+          <button class="ub-side-btn active" id="ubGoBoards">
+            <span class="ub-side-icon">📋</span> Message Boards
+          </button>
+          <button class="ub-side-btn" id="ubGoCategories">
+            <span class="ub-side-icon">🔖</span> Collections
+          </button>
         </div>
         <div class="ub-sidebar-section">
           <div class="ub-sidebar-label">Account</div>
-          <button class="ub-side-btn" id="ubGoProfile">👤 My Profile</button>
-          <button class="ub-side-btn hidden" id="ubGoAdmin">⚙ Admin Panel</button>
+          <button class="ub-side-btn" id="ubGoProfile">
+            <span class="ub-side-icon">👤</span> My Profile
+          </button>
+          <button class="ub-side-btn hidden" id="ubGoAdmin">
+            <span class="ub-side-icon">⚙</span> Admin Panel
+          </button>
         </div>
         <div class="ub-user-card">
-          <img class="ub-user-card-avatar" src="https://placehold.co/48x48" alt="avatar" id="ubSideAvatar">
+          <div class="ub-user-card-avatar-circle" id="ubSideAvatar">U</div>
           <div class="ub-user-card-info">
             <div class="ub-user-card-name" id="ubSideUsername">Loading...</div>
-            <div class="ub-user-card-email" id="ubSideEmail">loading@phinma.edu</div>
           </div>
         </div>
       </aside>
-
       <main class="ub-main">
         <div class="ub-banner">
           <div class="ub-banner-text">
@@ -132,7 +147,11 @@
         <div class="ub-boards-grid" id="ubBoardsGrid">
           <div class="ub-empty">No boards yet. Be the first to create one!</div>
         </div>
-        <div class="ub-create-row">
+        <div class="ub-section-header" style="margin-top:28px;">
+          <span>🔖 Saved Threads</span>
+        </div>
+        <div class="ub-saved-threads" id="ubSavedThreads"></div>
+        <div class="ub-create-row" style="margin-top:24px;">
           <input class="ub-create-input" id="ubNewBoardInput" placeholder="+ Create a new board...">
           <button class="ub-create-btn" id="ubCreateBoardBtn">Create</button>
         </div>
@@ -147,51 +166,41 @@
       <span class="sp-title">My Profile</span>
     </div>
     <div class="sp-body">
-
-      <!-- Profile Card -->
       <div class="profile-card">
         <div class="profile-avatar-wrap">
           <div class="profile-avatar-circle" id="profileAvatarCircle">?</div>
         </div>
         <div class="profile-info">
           <div class="profile-username" id="profileUsername">Loading...</div>
-          <div class="profile-email" id="profileEmail">loading@phinma.edu</div>
+          <div class="profile-email" id="profileEmail">user@email.com</div>
           <div class="profile-joined" id="profileJoined">Joined: —</div>
         </div>
       </div>
-
-      <!-- Edit Form -->
       <div class="profile-section">
         <div class="profile-section-title">Edit Profile</div>
-
-        <label class="profile-label"></label>
         <div class="profile-icon-picker">
-          <div class="profile-icon-option selected" data-icon="default" id="iconOpt0">
+          <div class="profile-icon-option selected" data-icon="default">
             <div class="profile-icon-avatar gradient-default">👤</div>
             <span>Default</span>
           </div>
-          <div class="profile-icon-option" data-icon="fire" id="iconOpt1">
+          <div class="profile-icon-option" data-icon="fire">
             <div class="profile-icon-avatar gradient-fire">🔥</div>
             <span>Flames</span>
           </div>
-          <div class="profile-icon-option" data-icon="star" id="iconOpt2">
+          <div class="profile-icon-option" data-icon="star">
             <div class="profile-icon-avatar gradient-star">⭐</div>
             <span>Star</span>
           </div>
-          <div class="profile-icon-option" data-icon="bolt" id="iconOpt3">
+          <div class="profile-icon-option" data-icon="bolt">
             <div class="profile-icon-avatar gradient-bolt">⚡</div>
             <span>Bolt</span>
           </div>
         </div>
-
         <button class="profile-save-btn" id="profileSaveBtn">Save Changes</button>
         <div class="profile-save-msg hidden" id="profileSaveMsg">✅ Profile updated!</div>
-        <!-- hidden inputs still needed by script -->
         <input id="profileUsernameInput" style="display:none">
         <textarea id="profileBioInput" style="display:none"></textarea>
       </div>
-
-      <!-- Stats -->
       <div class="profile-section">
         <div class="profile-section-title">Your Activity</div>
         <div class="profile-stats-row">
@@ -209,7 +218,6 @@
           </div>
         </div>
       </div>
-
     </div>
   </div>
 
@@ -224,7 +232,7 @@
       </div>
     </div>
     <div class="sp-body">
-      <div class="sp-grid" id="boardList"></div>
+      <div class="ub-boards-grid" id="boardList"></div>
     </div>
   </div>
 
@@ -233,36 +241,205 @@
     <div class="sp-navbar">
       <button class="sp-back-btn" id="backBoards">← Back</button>
       <span class="sp-title" id="boardTitle">Threads</span>
-      <div class="sp-create-inline">
-        <input class="sp-inline-input" id="newThreadInput" placeholder="New thread name...">
-        <button class="sp-inline-btn" id="createThreadBtn">+ Create</button>
+      <div class="sp-navbar-icons">
+        <div class="ub-notif-wrap">
+          <button class="sp-nav-icon-btn" id="ubNotifBtn2">🔔</button>
+          <span class="ub-badge" id="ubNotifBadge2" style="display:none;">0</span>
+        </div>
+        <button class="sp-nav-icon-btn" id="ubProfileBtn2">👤</button>
       </div>
     </div>
-    <div class="sp-body">
-      <div class="sp-list" id="threadList"></div>
+    <div class="ub-body">
+      <aside class="ub-sidebar">
+        <div class="ub-sidebar-section">
+          <div class="ub-sidebar-label">Boards</div>
+          <div id="thBoardsList"></div>
+        </div>
+      </aside>
+      <main class="ub-main">
+        <div class="th-create-bar" id="openCreateThread">
+          <div class="th-create-avatar" id="thCreateAvatar">U</div>
+          <div class="th-create-input-fake">What's on your mind?</div>
+        </div>
+        <div class="th-post-list" id="threadList"></div>
+      </main>
     </div>
   </div>
 
-  <!-- MESSAGES -->
+  <!-- CREATE THREAD MODAL -->
+  <div class="ct-overlay hidden" id="createThreadModal">
+    <div class="ct-modal">
+      <div class="ct-modal-header">
+        <span class="ct-modal-title">Create Thread</span>
+        <button class="ct-close-btn" id="closeCreateThread">✕</button>
+      </div>
+      <div class="ct-user-row">
+        <div class="ct-user-avatar" id="ctUserAvatar">U</div>
+        <span class="ct-user-name" id="ctUserName">user</span>
+      </div>
+      <label class="ct-label">Title <span class="ct-required">*</span></label>
+      <input class="ct-input" id="newThreadInput" placeholder="Enter thread title (Required)">
+      <label class="ct-label">Content <span class="ct-optional">(optional)</span></label>
+      <textarea class="ct-textarea" id="newThreadContent" placeholder="What's on your mind?"></textarea>
+      <div class="ct-modal-actions">
+        <button class="ct-photo-btn" id="ctPhotoBtn">🖼 Add Photo</button>
+        <input type="file" id="ctPhotoInput" accept="image/*" style="display:none">
+        <button class="ct-submit-btn" id="createThreadBtn">Post</button>
+      </div>
+      <div id="ctPhotoPreview" style="margin-top:12px;display:none;">
+        <img id="ctPhotoThumb" src="" style="max-width:100%;max-height:180px;border-radius:10px;object-fit:cover;">
+        <button id="ctPhotoRemove" style="display:block;width:auto;margin-top:6px;padding:4px 12px;border-radius:8px;border:1px solid #ddd;background:white;color:#e53e3e;font-size:12px;cursor:pointer;">✕ Remove photo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- POST OPTIONS MODAL -->
+  <div class="ct-overlay hidden" id="postOptionsModal">
+    <div class="post-options-sheet">
+      <div class="post-options-handle"></div>
+      <div class="post-options-title">Post Options</div>
+      <div class="post-options-sub">Manage this thread</div>
+      <div class="post-options-list">
+        <button class="post-option-btn post-option-archive" id="archiveThreadBtn">
+          <div class="post-option-icon" style="background:#fff8e1;">📦</div>
+          <div class="post-option-info">
+            <div class="post-option-name">Archive Thread</div>
+            <div class="post-option-desc">Hide this thread from the feed</div>
+          </div>
+          <span class="post-option-arrow">›</span>
+        </button>
+        <button class="post-option-btn post-option-report" id="reportThreadBtn">
+          <div class="post-option-icon" style="background:#fff3f3;">⚠️</div>
+          <div class="post-option-info">
+            <div class="post-option-name" style="color:#e53e3e;">Report Thread</div>
+            <div class="post-option-desc">Flag this thread for review</div>
+          </div>
+          <span class="post-option-arrow" style="color:#e53e3e;">›</span>
+        </button>
+      </div>
+      <button class="post-options-cancel" id="closePostOptions">Cancel</button>
+    </div>
+  </div>
+
+  <!-- SAVE TO COLLECTION MODAL -->
+  <div class="ct-overlay hidden" id="saveCollectionModal">
+    <div class="ct-modal">
+      <div class="ct-modal-header">
+        <span class="ct-modal-title">🔖 Save to Collection</span>
+        <button class="ct-close-btn" id="closeSaveCollection">✕</button>
+      </div>
+      <p style="font-size:13px;color:#888;margin-bottom:14px;">Choose an existing collection or create a new one.</p>
+      <div id="collectionList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;max-height:220px;overflow-y:auto;"></div>
+      <div style="border-top:1px solid #eee;padding-top:16px;">
+        <label class="ct-label">+ New Collection <span class="ct-optional">(type a name)</span></label>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <input class="ct-input" id="newCollectionInput" placeholder="e.g. Study Tips, Favorites..." style="flex:1;">
+          <button class="ct-submit-btn" id="createCollectionSaveBtn" style="flex-shrink:0;padding:0 18px!important;width:auto!important;">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MESSAGE SCREEN -->
   <div class="screen-page hidden" id="messageScreen">
     <div class="sp-navbar">
       <button class="sp-back-btn" id="backThreads">← Back</button>
       <span class="sp-title" id="threadTitle">Messages</span>
     </div>
-    <div class="sp-messages-body">
-      <div id="messageList"></div>
+    <div class="msg-layout">
+      <aside class="msg-sidebar">
+        <div class="msg-sidebar-title">Thread Info</div>
+        <div class="msg-sidebar-card" id="msgSideThreadInfo">
+          <div class="msg-side-loading">Loading...</div>
+        </div>
+        <div class="msg-sidebar-title" style="margin-top:20px;">Board</div>
+        <div class="msg-sidebar-card msg-side-board">
+          <span class="msg-side-board-icon">📋</span>
+          <span class="msg-side-board-name" id="msgSideBoardName">—</span>
+        </div>
+      </aside>
+      <main class="msg-main">
+        <div class="msg-reply-section">
+          <div class="msg-reply-label">✏️ Write a reply</div>
+          <div class="msg-reply-card">
+            <textarea class="msg-reply-textarea" id="messageInput" placeholder="Share your thoughts..."></textarea>
+            <div class="msg-reply-attach-row">
+              <button class="msg-attach-btn" id="msgAttachBtn">📎 Attach file</button>
+              <input type="file" id="msgImageFile" accept="image/*,video/*" style="display:none">
+              <span class="msg-attach-label" id="msgAttachLabel"></span>
+            </div>
+            <div class="sp-msg-image-preview hidden" id="msgImagePreview" style="margin:8px 0;"></div>
+            <div class="msg-reply-footer">
+              <button class="msg-send-btn" id="sendBtn">Send Reply ➤</button>
+            </div>
+          </div>
+        </div>
+        <div class="msg-replies-label">💬 Replies</div>
+        <div id="messageList"></div>
+      </main>
     </div>
-    <div class="sp-message-input-bar">
-      <div class="sp-msg-image-preview hidden" id="msgImagePreview">
-        <img id="msgImageThumb" src="" alt="preview">
-        <button class="sp-msg-remove-img" id="msgRemoveImg">✕</button>
+  </div>
+
+  <!-- COLLECTIONS SCREEN -->
+  <div class="screen-page hidden" id="collectionsScreen">
+    <div class="ub-navbar">
+      <div class="ub-navbar-left">
+        <button class="sp-back-btn" id="backFromCollections">← Back</button>
+        <img class="ub-nav-logo" src="https://placehold.co/40x40" alt="Logo">
+        <div class="ub-nav-info">
+          <span class="ub-nav-title">PHINMA</span>
+          <span class="ub-nav-subtitle">University of Pampanga</span>
+        </div>
       </div>
-      <div class="sp-msg-row">
-        <button class="sp-img-attach-btn" id="msgAttachBtn" title="Attach image/video">🖼️</button>
-        <input type="file" id="msgImageFile" accept="image/*,video/*" style="display:none">
-        <textarea class="sp-msg-textarea" id="messageInput" placeholder="Type a message..."></textarea>
-        <button class="sp-send-btn" id="sendBtn">Send</button>
+      <div class="ub-navbar-center">
+        <div class="ub-search-wrap">
+          <span class="ub-search-icon-left">🔍</span>
+          <input class="ub-search" id="colSearchInput" type="text" placeholder="Search collections..." autocomplete="off">
+        </div>
       </div>
+      <div class="ub-navbar-right">
+        <div class="ub-notif-wrap">
+          <button class="ub-icon-btn" id="colNotifBtn">🔔</button>
+          <span class="ub-badge" id="colNotifBadge" style="display:none;">0</span>
+        </div>
+        <span class="ub-hi-text" id="colHiText">Hi, user!</span>
+        <button class="ub-logout-btn" id="colLogoutBtn">Log Out</button>
+      </div>
+    </div>
+    <div class="ub-body">
+      <aside class="ub-sidebar">
+        <div class="ub-sidebar-section">
+          <div class="ub-sidebar-label">Navigation</div>
+          <button class="ub-side-btn" id="colGoBoards">
+            <span class="ub-side-icon">📋</span> Message Boards
+          </button>
+          <button class="ub-side-btn active" id="colGoCollections">
+            <span class="ub-side-icon">🔖</span> Collections
+          </button>
+        </div>
+        <div class="ub-sidebar-section">
+          <div class="ub-sidebar-label">Account</div>
+          <button class="ub-side-btn" id="colGoProfile">
+            <span class="ub-side-icon">👤</span> My Profile
+          </button>
+        </div>
+        <div class="ub-user-card">
+          <div class="ub-user-card-avatar-circle" id="colSideAvatar">U</div>
+          <div class="ub-user-card-info">
+            <div class="ub-user-card-name" id="colSideUsername">Loading...</div>
+          </div>
+        </div>
+      </aside>
+      <main class="ub-main">
+        <div class="ub-banner">
+          <div class="ub-banner-text">
+            <div class="ub-banner-greeting">🔖 My Collections</div>
+            <div class="ub-banner-sub">Your saved threads, organized by collection</div>
+          </div>
+          <div class="ub-banner-art">📁</div>
+        </div>
+        <div id="collectionsContainer"></div>
+      </main>
     </div>
   </div>
 
@@ -273,7 +450,7 @@
       <span class="sp-title">Notifications</span>
     </div>
     <div class="sp-body">
-      <div class="sp-empty-state" id="notifList">No notifications yet.</div>
+      <div id="notifList"></div>
     </div>
   </div>
 
@@ -287,15 +464,10 @@
       <div class="sp-admin-grid">
         <button class="sp-admin-card" id="viewStatsBtn">📊<span>View Stats</span></button>
         <button class="sp-admin-card" id="manageUsersBtn">👥<span>Manage Users</span></button>
-        <button class="sp-admin-card" id="moderationBtn">🛡️<span>Moderation</span></button>
+        <button class="sp-admin-card" id="manageBoardsBtn">📋<span>Manage Boards</span></button>
       </div>
     </div>
   </div>
-
-  <button id="logoutBtn" style="display:none"></button>
-
-<script src="https://unpkg.com/imagekit-javascript/dist/imagekit.min.js"></script>
-<input type="file" id="imageInput" accept="image/*">
 
 </div>
 </body>
