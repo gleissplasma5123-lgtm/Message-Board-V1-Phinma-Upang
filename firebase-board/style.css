@@ -2186,3 +2186,26 @@ textarea {
   color: #1A5849 !important;
   background: transparent !important;
 }
+
+.thread-img, .msg-img {
+  width: 100%;
+  max-height: 300px;
+  object-fit: cover;
+  border-radius: 10px;
+  margin-top: 10px;
+}
+
+.msg-video {
+  width: 100%;
+  max-height: 300px;
+  border-radius: 10px;
+  margin-top: 10px;
+}
+
+.th-post-image {
+  width: 100%;
+  max-height: 300px;
+  object-fit: cover;
+  border-radius: 10px;
+  margin-top: 10px;
+}
