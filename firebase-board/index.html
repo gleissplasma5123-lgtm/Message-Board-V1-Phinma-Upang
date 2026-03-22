@@ -38,7 +38,7 @@
           <div class="login-card-title">Welcome Back!</div>
           <div class="login-card-sub">Sign in to continue your journey</div>
           <div class="login-input-wrap">
-            <span class="login-input-icon">✉</span>
+            <span class="login-input-icon">📧</span>
             <input id="email" class="login-field" type="email" placeholder="Email Address">
           </div>
           <div class="login-input-wrap">
@@ -59,21 +59,39 @@
   <!-- REGISTER -->
   <div id="registerScreen" class="hidden">
     <div class="reg-hero">
-      <div class="wave-top">
-        <svg viewBox="0 0 1440 220" preserveAspectRatio="none">
-          <path fill="#1A5849" d="M0,0H1440V120C1200,180,800,160,0,220Z"></path>
-          <path fill="#6BBFB5" opacity="0.9" d="M0,80C300,160,700,40,1440,120V220H0Z"></path>
-          <path fill="#8ED7D0" opacity="0.8" d="M0,120C200,200,900,100,1440,160V220H0Z"></path>
-        </svg>
+      <div class="reg-top-bg">
+        <div class="reg-top-content">
+          <img class="reg-logo" src="https://placehold.co/90x90" alt="Logo">
+          <div class="reg-app-name">PHINMA</div>
+          <div class="reg-app-sub">Message Board</div>
+        </div>
+        <div class="reg-wave">
+          <svg viewBox="0 0 1440 120" preserveAspectRatio="none">
+            <path fill="#f5f7f5" d="M0,60 C360,120 1080,0 1440,60 L1440,120 L0,120 Z"></path>
+          </svg>
+        </div>
       </div>
-      <img class="reg-logo" src="https://placehold.co/120x120" alt="Logo">
-      <div class="reg-card">
-        <input id="registerEmail" class="reg-field" type="email" placeholder="Enter Phinma email">
-        <input id="registerUsername" class="reg-field" type="text" placeholder="Enter Username">
-        <input id="registerPassword" class="reg-field" type="password" placeholder="Enter Password">
-        <button id="registerBtn" class="reg-btn">Register</button>
-        <div id="otpSection" class="hidden"></div>
-        <button id="backToLoginBtn" class="reg-btn-outline">Back to Login</button>
+      <div class="reg-body">
+        <div class="reg-card">
+          <div class="reg-card-title">Create Account</div>
+          <div class="reg-card-sub">Join PHINMA Message Board today</div>
+          <div class="reg-input-wrap">
+            <span class="reg-input-icon">📧</span>
+            <input id="registerEmail" class="reg-field" type="email" placeholder="Enter Phinma email">
+          </div>
+          <div class="reg-input-wrap">
+            <span class="reg-input-icon">👤</span>
+            <input id="registerUsername" class="reg-field" type="text" placeholder="Enter Username">
+          </div>
+          <div class="reg-input-wrap">
+            <span class="reg-input-icon">🔒</span>
+            <input id="registerPassword" class="reg-field" type="password" placeholder="Enter Password">
+          </div>
+          <button id="registerBtn" class="reg-btn">Register</button>
+          <div id="otpSection" class="hidden"></div>
+          <button id="backToLoginBtn" class="reg-btn-outline">Back to Login</button>
+        </div>
+        <div class="reg-footer-text">Making Lives Better Through Education</div>
       </div>
     </div>
   </div>
@@ -92,7 +110,7 @@
         <div class="ub-search-wrap">
           <span class="ub-search-icon-left">🔍</span>
           <input class="ub-search" id="ubSearchInput" type="text" placeholder="Search boards, threads..." autocomplete="off">
-          <span class="ub-search-icon" id="ubSearchClear">✕</span>
+          <span class="ub-search-icon" id="ubSearchClear">🔍</span>
         </div>
         <div class="ub-search-dropdown hidden" id="ubSearchDropdown"></div>
       </div>
@@ -172,7 +190,7 @@
         </div>
         <div class="profile-info">
           <div class="profile-username" id="profileUsername">Loading...</div>
-          <div class="profile-email" id="profileEmail">user@email.com</div>
+          <div class="profile-email" id="profileEmail"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="2f5a5c4a5d6f4a424e4643014c4042">[email&#160;protected]</a></div>
           <div class="profile-joined" id="profileJoined">Joined: —</div>
         </div>
       </div>
@@ -221,23 +239,8 @@
     </div>
   </div>
 
-  <!-- BOARDS -->
-  <div class="screen-page hidden" id="boardScreen">
-    <div class="sp-navbar">
-      <button class="sp-back-btn" id="backFromBoards">← Back</button>
-      <span class="sp-title">Message Boards</span>
-      <div class="sp-create-inline">
-        <input class="sp-inline-input" id="newBoardInput" placeholder="New board name...">
-        <button class="sp-inline-btn" id="createBoardBtn">+ Create</button>
-      </div>
-    </div>
-    <div class="sp-body">
-      <div class="ub-boards-grid" id="boardList"></div>
-    </div>
-  </div>
-
   <!-- THREADS -->
-  <div class="screen-page hidden" id="threadScreen">
+  <div id="threadScreen" class="hidden">
     <div class="sp-navbar">
       <button class="sp-back-btn" id="backBoards">← Back</button>
       <span class="sp-title" id="boardTitle">Threads</span>
@@ -300,14 +303,6 @@
       <div class="post-options-title">Post Options</div>
       <div class="post-options-sub">Manage this thread</div>
       <div class="post-options-list">
-        <button class="post-option-btn post-option-archive" id="archiveThreadBtn">
-          <div class="post-option-icon" style="background:#fff8e1;">📦</div>
-          <div class="post-option-info">
-            <div class="post-option-name">Archive Thread</div>
-            <div class="post-option-desc">Hide this thread from the feed</div>
-          </div>
-          <span class="post-option-arrow">›</span>
-        </button>
         <button class="post-option-btn post-option-report" id="reportThreadBtn">
           <div class="post-option-icon" style="background:#fff3f3;">⚠️</div>
           <div class="post-option-info">
@@ -482,15 +477,13 @@
         <div class="ub-sidebar-section">
           <div class="ub-sidebar-label">Navigation</div>
           <button class="ub-side-btn" id="adminGoBoards"><span class="ub-side-icon">🏠</span> Message Boards</button>
-          <button class="ub-side-btn" id="adminGoCollections"><span class="ub-side-icon">🚀</span> Collections</button>
           <button class="ub-side-btn" id="adminGoProfile"><span class="ub-side-icon">👤</span> My Profile</button>
         </div>
         <div class="ub-sidebar-section">
           <div class="ub-sidebar-label">Admin Tools</div>
           <button class="ub-side-btn" id="adminViewStatsBtn"><span class="ub-side-icon">📊</span> View Stats</button>
           <button class="ub-side-btn" id="adminManageUsersBtn"><span class="ub-side-icon">👥</span> Manage Users</button>
-          <button class="ub-side-btn" id="adminManageBoardsBtn"><span class="ub-side-icon">📋</span> Manage Boards</button>
-          <button class="ub-side-btn" id="adminManageThreadsBtn"><span class="ub-side-icon">💬</span> Manage Threads</button>
+          <button class="ub-side-btn" id="adminModerationBtn"><span class="ub-side-icon">🛡️</span> Content Review</button>
         </div>
         <div class="ub-user-card">
           <div class="ub-user-card-avatar-circle" id="adminSideAvatar">🔥</div>
@@ -500,30 +493,6 @@
         </div>
       </aside>
       <main class="ub-main">
-
-        <!-- Manage Boards Panel -->
-        <div id="adminPanelBoards">
-          <div class="ub-banner" style="margin-bottom:24px;">
-            <div class="ub-banner-text">
-              <div class="ub-banner-greeting">📋 Manage Boards</div>
-              <div class="ub-banner-sub">View and delete boards from the system</div>
-            </div>
-            <div class="ub-banner-art">🗂️</div>
-          </div>
-          <div id="adminBoardsList" style="display:flex;flex-direction:column;gap:10px;"></div>
-        </div>
-
-        <!-- Manage Threads Panel -->
-        <div id="adminPanelThreads" style="display:none;">
-          <div class="ub-banner" style="margin-bottom:24px;">
-            <div class="ub-banner-text">
-              <div class="ub-banner-greeting">💬 Manage Threads</div>
-              <div class="ub-banner-sub">View and delete threads from the system</div>
-            </div>
-            <div class="ub-banner-art">🗑️</div>
-          </div>
-          <div id="adminThreadsList" style="display:flex;flex-direction:column;gap:10px;"></div>
-        </div>
 
         <!-- Stats Panel -->
         <div id="adminPanelStats" style="display:none;">
@@ -548,6 +517,9 @@
           </div>
           <div id="adminUsersList" style="display:flex;flex-direction:column;gap:10px;"></div>
         </div>
+
+        <!-- Content Review Panel -->
+        <div id="adminPanelModeration" style="display:none;"></div>
 
       </main>
     </div>

@@ -42,64 +42,20 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-
-/* ================= IMAGEKIT AUTH ================= */
-
-async function getImageKitAuth() {
-  const publicKey = "public_isps5my0lucp46J/DyUpeaPZNL0=";
-  const privateKey = "private_Ba3z84wQ/y8n1GKVBs7vQ5BJH2k=";
-
-  const token = Math.random().toString(36).substring(2);
-  const expire = Math.floor(Date.now() / 1000) + 60 * 5; 
-
-  const stringToSign = token + expire;
-
-  // Create SHA1 signature
-  const encoder = new TextEncoder();
-  const data = encoder.encode(stringToSign + privateKey);
-
-  const hashBuffer = await crypto.subtle.digest("SHA-1", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const signature = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
-
-  return { publicKey, token, expire, signature };
-}
-
 /* ================= IMAGEKIT UPLOAD ================= */
 
 async function uploadToImageKit(file) {
-  try {
-    const auth = await getImageKitAuth();
-
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("fileName", Date.now() + "_" + file.name);
-
-    formData.append("publicKey", auth.publicKey);
-    formData.append("signature", auth.signature);
-    formData.append("expire", auth.expire);
-    formData.append("token", auth.token);
-
-    const res = await fetch("https://upload.imagekit.io/api/v1/files/upload", {
-      method: "POST",
-      body: formData
-    });
-
-    const data = await res.json();
-
-    console.log("ImageKit response:", data);
-
-    if (!data.url) {
-      alert("Upload failed.");
-      return null;
-    }
-
-    return data.url;
-
-  } catch (err) {
-    console.error("Upload crash:", err);
-    return null;
-  }
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("fileName", file.name);
+  const res = await fetch("https://upload.imagekit.io/api/v1/files/upload", {
+    method: "POST",
+    headers: { Authorization: "Basic " + btoa("public_YJcnOCqlESuiLxcybkWCsh5j+Ms=:") },
+    body: formData
+  });
+  const data = await res.json();
+  if (!data.url) { console.error("ImageKit upload failed", data); return null; }
+  return data.url;
 }
 
 /* ================= ADMIN ================= */
@@ -113,13 +69,12 @@ let currentUser;
 let currentBoard;
 let currentThread;
 let allBoards = [];
-
 let _saveThreadId = null;
 let _saveThreadName = null;
 
 /* ================= USER ICON CACHE ================= */
 
-const userIconCache = {}; // email -> { emoji, gradientClass }
+const userIconCache = {};
 
 const iconMap = {
   default: { emoji: "👤", gradientClass: "gradient-default" },
@@ -158,7 +113,6 @@ function show(id) {
   });
   const target = document.getElementById(id);
   if (target) target.classList.remove("hidden");
-
   sessionStorage.setItem("currentScreen", id);
   if (currentBoard) sessionStorage.setItem("currentBoard", currentBoard);
   if (currentThread) sessionStorage.setItem("currentThread", currentThread);
@@ -194,7 +148,6 @@ function populateUserboardUser(user) {
   getDocs(query(collection(db, "users"), where("uid", "==", user.uid))).then(snap => {
     let uname = user.email.split("@")[0];
     if (!snap.empty) uname = snap.docs[0].data().username || uname;
-
     const hiText = document.getElementById("ubHiText");
     if (hiText) hiText.textContent = "Hi, " + uname + "!";
     const sideUsername = document.getElementById("ubSideUsername");
@@ -205,10 +158,11 @@ function populateUserboardUser(user) {
       sideAvatar.className = "ub-user-card-avatar-circle gradient-default";
     }
   });
-
   if (isAdmin()) {
     const adminBtn = document.getElementById("ubGoAdmin");
     if (adminBtn) adminBtn.classList.remove("hidden");
+    const collectionsBtn = document.getElementById("ubGoCategories");
+    if (collectionsBtn) collectionsBtn.classList.add("hidden");
   }
 }
 
@@ -224,12 +178,21 @@ function loadUserboardBoards() {
     allBoards.forEach(b => {
       const card = document.createElement("div");
       card.className = "ub-board-card";
+      card.style.position = "relative";
       card.innerHTML = `
+        ${!isAdmin() ? `<button class="ub-board-report-btn" title="Report this board" style="position:absolute;top:8px;right:8px;width:24px!important;height:24px!important;padding:0!important;margin:0!important;border-radius:50%!important;border:none!important;background:rgba(0,0,0,0.06)!important;color:#aaa!important;font-size:13px!important;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">⋮</button>` : ""}
         <div class="ub-board-icon">📋</div>
         <div class="ub-board-name">${b.name}</div>
         <div class="ub-board-meta">by ${b.createBy || "unknown"}</div>
       `;
-      card.onclick = () => {
+      if (!isAdmin()) {
+        card.querySelector(".ub-board-report-btn")?.addEventListener("click", (e) => {
+          e.stopPropagation();
+          openBoardReportModal(b.id, b.name);
+        });
+      }
+      card.onclick = (e) => {
+        if (e.target.closest(".ub-board-report-btn")) return;
         currentBoard = b.id;
         document.getElementById("boardTitle").textContent = b.name;
         show("threadScreen");
@@ -237,7 +200,7 @@ function loadUserboardBoards() {
       };
       grid.appendChild(card);
     });
-  }); 
+  });
 }
 
 function initUserboard(user) {
@@ -263,51 +226,41 @@ function openSaveCollectionModal(threadId, threadName) {
 async function loadCollectionList() {
   const list = document.getElementById("collectionList");
   list.innerHTML = '<div style="color:#bbb;font-size:13px;text-align:center;padding:8px;">Loading...</div>';
-
   const alreadySavedSnap = await getDocs(query(
     collection(db, "savedThreads"),
     where("threadId", "==", _saveThreadId),
     where("uid", "==", currentUser.uid)
   ));
   const alreadySavedIn = !alreadySavedSnap.empty ? alreadySavedSnap.docs[0].data().collection : null;
-
   list.innerHTML = "";
-
   if (alreadySavedIn) {
     const removeBox = document.createElement("div");
     removeBox.style.cssText = "background:#fff5f5;border:1.5px solid #ffd0d0;border-radius:12px;padding:14px 16px;margin-bottom:12px;display:flex;align-items:center;gap:12px;";
     removeBox.innerHTML = `
       <span style="font-size:20px;">🔖</span>
-      <div style="flex:1;">
-        <div style="font-size:13px;font-weight:600;color:#555;">Currently saved in <strong style="color:#1A5849;">${alreadySavedIn}</strong></div>
-      </div>
+      <div style="flex:1;"><div style="font-size:13px;font-weight:600;color:#555;">Currently saved in <strong style="color:#1A5849;">${alreadySavedIn}</strong></div></div>
       <button id="removeSaveBtn" style="width:auto!important;height:34px;padding:0 14px!important;border-radius:999px!important;border:none!important;background:#e53e3e!important;color:white!important;font-size:13px!important;font-weight:600;cursor:pointer;margin:0!important;flex-shrink:0;">Remove</button>
     `;
     list.appendChild(removeBox);
     document.getElementById("removeSaveBtn").addEventListener("click", () => unsaveThread());
   }
-
   const snap = await getDocs(query(collection(db, "savedCollections"), where("uid", "==", currentUser.uid)));
-
   if (snap.empty && !alreadySavedIn) {
     list.innerHTML += '<div style="color:#bbb;font-size:13px;text-align:center;padding:8px;">No collections yet. Create one below!</div>';
     return;
   }
-
   const cols = {};
   snap.forEach(d => {
     const name = d.data().name;
     if (!cols[name]) cols[name] = new Set();
     cols[name].add(d.data().threadId);
   });
-
   if (Object.keys(cols).length > 0) {
     const label = document.createElement("div");
     label.style.cssText = "font-size:11px;font-weight:700;color:#bbb;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;";
     label.textContent = alreadySavedIn ? "Move to another collection:" : "Save to:";
     list.appendChild(label);
   }
-
   Object.entries(cols).forEach(([name, threadSet]) => {
     const isCurrentCollection = name === alreadySavedIn;
     const btn = document.createElement("button");
@@ -326,10 +279,8 @@ async function loadCollectionList() {
 async function unsaveThread() {
   const existing = await getDocs(query(collection(db, "savedThreads"), where("threadId", "==", _saveThreadId), where("uid", "==", currentUser.uid)));
   existing.forEach(async d => await deleteDoc(doc(db, "savedThreads", d.id)));
-
   const existingCol = await getDocs(query(collection(db, "savedCollections"), where("threadId", "==", _saveThreadId), where("uid", "==", currentUser.uid)));
   existingCol.forEach(async d => await deleteDoc(doc(db, "savedCollections", d.id)));
-
   document.getElementById("saveCollectionModal").classList.add("hidden");
   const btn = document.querySelector(`.th-save-btn[data-id="${_saveThreadId}"]`);
   if (btn) btn.classList.remove("saved");
@@ -339,26 +290,15 @@ async function unsaveThread() {
 async function saveToCollection(collectionName) {
   const existing = await getDocs(query(collection(db, "savedThreads"), where("threadId", "==", _saveThreadId), where("uid", "==", currentUser.uid)));
   existing.forEach(async d => await deleteDoc(doc(db, "savedThreads", d.id)));
-
   const existingCol = await getDocs(query(collection(db, "savedCollections"), where("threadId", "==", _saveThreadId), where("uid", "==", currentUser.uid)));
   existingCol.forEach(async d => await deleteDoc(doc(db, "savedCollections", d.id)));
-
   await addDoc(collection(db, "savedThreads"), {
-    threadId: _saveThreadId,
-    threadName: _saveThreadName,
-    boardId: currentBoard,
-    uid: currentUser.uid,
-    collection: collectionName,
-    savedAt: serverTimestamp()
+    threadId: _saveThreadId, threadName: _saveThreadName, boardId: currentBoard,
+    uid: currentUser.uid, collection: collectionName, savedAt: serverTimestamp()
   });
-
   await addDoc(collection(db, "savedCollections"), {
-    uid: currentUser.uid,
-    name: collectionName,
-    threadId: _saveThreadId,
-    savedAt: serverTimestamp()
+    uid: currentUser.uid, name: collectionName, threadId: _saveThreadId, savedAt: serverTimestamp()
   });
-
   document.getElementById("saveCollectionModal").classList.add("hidden");
   const btn = document.querySelector(`.th-save-btn[data-id="${_saveThreadId}"]`);
   if (btn) btn.classList.add("saved");
@@ -383,6 +323,65 @@ function showToast(message) {
   }, 2800);
 }
 
+async function openBoardReportModal(boardId, boardName) {
+  const existing = await getDocs(query(
+    collection(db, "reports"),
+    where("boardId", "==", boardId),
+    where("reportedBy", "==", currentUser.email),
+    where("type", "==", "board")
+  ));
+  if (!existing.empty) { showToast("⚠️ You already reported this board."); return; }
+  let modal = document.getElementById("boardReportModal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "boardReportModal";
+    modal.className = "ct-overlay";
+    modal.innerHTML = `
+      <div class="ct-modal" style="max-width:420px;">
+        <div class="ct-modal-header">
+          <span class="ct-modal-title">⚠️ Report Board</span>
+          <button class="ct-close-btn" id="closeBoardReportModal">✕</button>
+        </div>
+        <p style="font-size:13px;color:#888;margin-bottom:16px;">Why are you reporting this board? We'll review it and take action if needed.</p>
+        <div id="boardReportReasons" style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;">
+          ${["Spam","Inappropriate Content","Harassment","Misinformation","Other"].map(r => `
+            <label style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:10px;border:1.5px solid #e8f0ef;cursor:pointer;background:#fafafa;">
+              <input type="radio" name="boardReportReason" value="${r}" style="width:16px;height:16px;margin:0;accent-color:#1A5849;">
+              <span style="font-size:14px;color:#222;">${r}</span>
+            </label>
+          `).join("")}
+        </div>
+        <button id="submitBoardReportBtn" class="ct-submit-btn" style="width:100%!important;">Submit Report</button>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    document.getElementById("closeBoardReportModal").addEventListener("click", () => modal.classList.add("hidden"));
+    modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.add("hidden"); });
+  }
+  modal.querySelectorAll("input[name='boardReportReason']").forEach(r => r.checked = false);
+  modal.classList.remove("hidden");
+  const submitBtn = document.getElementById("submitBoardReportBtn");
+  const newBtn = submitBtn.cloneNode(true);
+  submitBtn.parentNode.replaceChild(newBtn, submitBtn);
+  newBtn.addEventListener("click", async () => {
+    const selected = modal.querySelector("input[name='boardReportReason']:checked");
+    if (!selected) { showToast("⚠️ Please select a reason."); return; }
+    newBtn.textContent = "Submitting...";
+    newBtn.disabled = true;
+    try {
+      await addDoc(collection(db, "reports"), {
+        type: "board", boardId, boardName,
+        reportedBy: currentUser.email, reason: selected.value,
+        status: "pending", reportedAt: serverTimestamp()
+      });
+      modal.classList.add("hidden");
+      showToast("✅ Board reported. Thank you for your feedback.");
+    } catch (e) { showToast("❌ Failed to submit report. Try again."); }
+    newBtn.textContent = "Submit Report";
+    newBtn.disabled = false;
+  });
+}
+
 /* ================= AUTH ================= */
 
 window.addEventListener("DOMContentLoaded", () => {
@@ -394,16 +393,11 @@ window.addEventListener("DOMContentLoaded", () => {
   onAuthStateChanged(auth, async (user) => {
     const loader = document.getElementById("appLoader");
     if (loader) loader.style.display = "none";
-
     if (user) {
-      // Reload to get fresh emailVerified status from Firebase Auth
       await user.reload();
       const freshUser = auth.currentUser;
-
       if (!freshUser.emailVerified) { show("loginScreen"); return; }
       currentUser = freshUser;
-
-      // Sync emailVerified to Firestore
       const userSnap = await getDocs(query(collection(db, "users"), where("uid", "==", freshUser.uid)));
       if (!userSnap.empty) {
         const userDoc = userSnap.docs[0];
@@ -411,20 +405,15 @@ window.addEventListener("DOMContentLoaded", () => {
           await updateDoc(doc(db, "users", userDoc.id), { emailVerified: true });
         }
       }
-
       const savedScreen = sessionStorage.getItem("currentScreen");
       const savedBoard = sessionStorage.getItem("currentBoard");
       const savedThread = sessionStorage.getItem("currentThread");
       const savedBoardTitle = sessionStorage.getItem("boardTitle");
       const savedThreadTitle = sessionStorage.getItem("threadTitle");
-
       initUserboard(user);
-      loadBoards();
       loadNotifications();
-
       const storedPrev = sessionStorage.getItem("previousScreen");
       if (storedPrev) previousScreen = storedPrev;
-
       if (savedScreen && savedScreen !== "loginScreen" && savedScreen !== "registerScreen") {
         if (savedBoard) {
           currentBoard = savedBoard;
@@ -472,10 +461,8 @@ window.addEventListener("DOMContentLoaded", () => {
     loginBtn.disabled = true;
     try {
       const userCred = await signInWithEmailAndPassword(auth, emailVal, passVal);
-      // Force reload to get latest emailVerified status from Firebase Auth
       await userCred.user.reload();
       const freshUser = auth.currentUser;
-
       if (!freshUser.emailVerified) {
         await signOut(auth);
         loginBtn.textContent = "Log In";
@@ -483,8 +470,6 @@ window.addEventListener("DOMContentLoaded", () => {
         alert("❌ Your email is not verified yet. Please check your inbox.");
         return;
       }
-
-      // Update emailVerified in Firestore if not already done
       const userSnap = await getDocs(query(collection(db, "users"), where("uid", "==", freshUser.uid)));
       if (!userSnap.empty) {
         const userDoc = userSnap.docs[0];
@@ -492,7 +477,6 @@ window.addEventListener("DOMContentLoaded", () => {
           await updateDoc(doc(db, "users", userDoc.id), { emailVerified: true });
         }
       }
-
       loginBtn.textContent = "Log In";
       loginBtn.disabled = false;
     } catch (e) {
@@ -515,11 +499,8 @@ window.addEventListener("DOMContentLoaded", () => {
       const userCred = await createUserWithEmailAndPassword(auth, emailVal, passVal);
       await sendEmailVerification(userCred.user);
       await addDoc(collection(db, "users"), {
-        uid: userCred.user.uid,
-        email: emailVal,
-        username: userVal,
-        emailVerified: false,
-        joinedAt: serverTimestamp()
+        uid: userCred.user.uid, email: emailVal, username: userVal,
+        emailVerified: false, joinedAt: serverTimestamp()
       });
       await signOut(auth);
       registerBtn.textContent = "Register";
@@ -548,9 +529,7 @@ window.addEventListener("DOMContentLoaded", () => {
           await sendEmailVerification(tempCred.user);
           await signOut(auth);
           alert("✅ Verification email resent!");
-        } catch (err) {
-          alert("Could not resend: " + err.message);
-        }
+        } catch (err) { alert("Could not resend: " + err.message); }
       });
     } catch (e) {
       registerBtn.textContent = "Register";
@@ -559,24 +538,6 @@ window.addEventListener("DOMContentLoaded", () => {
       otpSection.innerHTML = "";
       alert(e.message);
     }
-  });
-
-  /* ======= BOARDS ======= */
-  const createBoardBtn = document.getElementById("createBoardBtn");
-  const newBoardInput = document.getElementById("newBoardInput");
-
-  createBoardBtn?.addEventListener("click", async () => {
-    if (!newBoardInput.value.trim()) return;
-    const boardName = newBoardInput.value.trim();
-    await addDoc(collection(db, "boards"), { name: boardName, createBy: currentUser.email, createdAt: serverTimestamp() });
-    await addDoc(collection(db, "notifications"), {
-      type: "new_board",
-      message: `📋 New board created: "${boardName}" by ${currentUser.email}`,
-      createdBy: currentUser.email,
-      createdAt: serverTimestamp(),
-      readBy: [currentUser.uid]
-    });
-    newBoardInput.value = "";
   });
 
   /* ======= THREAD MODAL ======= */
@@ -594,23 +555,72 @@ window.addEventListener("DOMContentLoaded", () => {
       document.getElementById("postOptionsModal").classList.add("hidden");
     }
   });
-  document.getElementById("archiveThreadBtn")?.addEventListener("click", async () => {
+
+  document.getElementById("reportThreadBtn")?.addEventListener("click", async () => {
     const threadId = document.getElementById("postOptionsModal").dataset.threadId;
+    const threadName = document.getElementById("postOptionsModal").dataset.threadName || "Unknown Thread";
     if (!threadId) return;
     document.getElementById("postOptionsModal").classList.add("hidden");
-    if (!confirm("Archive this thread? It will be hidden from the feed.")) return;
-    await updateDoc(doc(db, "threads", threadId), { archived: true });
-    showToast("📦 Thread archived.");
-  });
-  document.getElementById("reportThreadBtn")?.addEventListener("click", () => {
-    document.getElementById("postOptionsModal").classList.add("hidden");
-    alert("Thread reported. Thank you for your feedback.");
+    const existingReport = await getDocs(query(
+      collection(db, "reports"),
+      where("threadId", "==", threadId),
+      where("reportedBy", "==", currentUser.email),
+      where("type", "==", "thread")
+    ));
+    if (!existingReport.empty) { showToast("⚠️ You already reported this thread."); return; }
+    let reportModal = document.getElementById("reportModal");
+    if (!reportModal) {
+      reportModal = document.createElement("div");
+      reportModal.id = "reportModal";
+      reportModal.className = "ct-overlay";
+      reportModal.innerHTML = `
+        <div class="ct-modal" style="max-width:420px;">
+          <div class="ct-modal-header">
+            <span class="ct-modal-title">⚠️ Report Thread</span>
+            <button class="ct-close-btn" id="closeReportModal">✕</button>
+          </div>
+          <p style="font-size:13px;color:#888;margin-bottom:16px;">Why are you reporting this thread? We'll review it and take action if needed.</p>
+          <div id="reportReasons" style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;">
+            ${["Spam","Inappropriate Content","Harassment","Misinformation","Other"].map(r => `
+              <label style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:10px;border:1.5px solid #e8f0ef;cursor:pointer;background:#fafafa;">
+                <input type="radio" name="reportReason" value="${r}" style="width:16px;height:16px;margin:0;accent-color:#1A5849;">
+                <span style="font-size:14px;color:#222;">${r}</span>
+              </label>
+            `).join("")}
+          </div>
+          <button id="submitReportBtn" class="ct-submit-btn" style="width:100%!important;">Submit Report</button>
+        </div>
+      `;
+      document.body.appendChild(reportModal);
+      document.getElementById("closeReportModal").addEventListener("click", () => reportModal.classList.add("hidden"));
+      reportModal.addEventListener("click", (e) => { if (e.target === reportModal) reportModal.classList.add("hidden"); });
+    }
+    reportModal.querySelectorAll("input[name='reportReason']").forEach(r => r.checked = false);
+    reportModal.classList.remove("hidden");
+    const submitBtn = document.getElementById("submitReportBtn");
+    const newSubmitBtn = submitBtn.cloneNode(true);
+    submitBtn.parentNode.replaceChild(newSubmitBtn, submitBtn);
+    newSubmitBtn.addEventListener("click", async () => {
+      const selected = reportModal.querySelector("input[name='reportReason']:checked");
+      if (!selected) { showToast("⚠️ Please select a reason."); return; }
+      newSubmitBtn.textContent = "Submitting...";
+      newSubmitBtn.disabled = true;
+      try {
+        await addDoc(collection(db, "reports"), {
+          type: "thread", threadId, threadName, boardId: currentBoard,
+          reportedBy: currentUser.email, reason: selected.value,
+          status: "pending", reportedAt: serverTimestamp()
+        });
+        reportModal.classList.add("hidden");
+        showToast("✅ Thread reported. Thank you for your feedback.");
+      } catch (e) { showToast("❌ Failed to submit report. Try again."); }
+      newSubmitBtn.textContent = "Submit Report";
+      newSubmitBtn.disabled = false;
+    });
   });
 
   let ctSelectedPhoto = null;
-  document.getElementById("ctPhotoBtn")?.addEventListener("click", () => {
-    document.getElementById("ctPhotoInput").click();
-  });
+  document.getElementById("ctPhotoBtn")?.addEventListener("click", () => document.getElementById("ctPhotoInput").click());
   document.getElementById("ctPhotoInput")?.addEventListener("change", (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -652,21 +662,11 @@ window.addEventListener("DOMContentLoaded", () => {
     createThreadBtn.textContent = "Posting...";
     createThreadBtn.disabled = true;
     let photoURL = null;
-    if (ctSelectedPhoto) {
-  photoURL = await uploadToImageKit(ctSelectedPhoto);
-  if (!photoURL) {
-    createThreadBtn.textContent = "Post";
-    createThreadBtn.disabled = false;
-    return;
-  }
-}
+    if (ctSelectedPhoto) photoURL = await uploadToImageKit(ctSelectedPhoto);
     await addDoc(collection(db, "threads"), {
-      board: currentBoard,
-      name: newThreadInput.value.trim(),
+      board: currentBoard, name: newThreadInput.value.trim(),
       content: document.getElementById("newThreadContent")?.value.trim() || "",
-      image: photoURL || null,
-      createdBy: currentUser.email,
-      createdAt: serverTimestamp()
+      image: photoURL || null, createdBy: currentUser.email, createdAt: serverTimestamp()
     });
     createThreadBtn.textContent = "Post";
     createThreadBtn.disabled = false;
@@ -689,7 +689,6 @@ window.addEventListener("DOMContentLoaded", () => {
   let msgSelectedImage = null;
 
   msgAttachBtn?.addEventListener("click", () => msgImageFile?.click());
-
   msgImageFile?.addEventListener("change", () => {
     const file = msgImageFile.files[0];
     if (!file) return;
@@ -703,8 +702,7 @@ window.addEventListener("DOMContentLoaded", () => {
     msgImagePreview.innerHTML = "";
     if (isVideo) {
       const vid = document.createElement("video");
-      vid.src = url;
-      vid.controls = true;
+      vid.src = url; vid.controls = true;
       vid.style.cssText = "max-width:200px;max-height:120px;border-radius:10px;display:block;";
       msgImagePreview.appendChild(vid);
     } else {
@@ -741,9 +739,7 @@ window.addEventListener("DOMContentLoaded", () => {
       sendBtn.disabled = false;
     }
     await addDoc(collection(db, "messages"), {
-      thread: currentThread,
-      author: currentUser.email,
-      text: text || "",
+      thread: currentThread, author: currentUser.email, text: text || "",
       image: mediaType === "image" ? mediaURL : null,
       video: mediaType === "video" ? mediaURL : null,
       time: serverTimestamp()
@@ -753,14 +749,9 @@ window.addEventListener("DOMContentLoaded", () => {
     if (otherAuthors.length > 0) {
       const threadTitle = document.getElementById("threadTitle").textContent;
       await addDoc(collection(db, "notifications"), {
-        type: "new_reply",
-        message: `💬 ${currentUser.email} replied in "${threadTitle}"`,
-        thread: currentThread,
-        threadTitle: threadTitle,
-        createdBy: currentUser.email,
-        forUsers: otherAuthors,
-        createdAt: serverTimestamp(),
-        readBy: [currentUser.uid]
+        type: "new_reply", message: `💬 ${currentUser.email} replied in "${threadTitle}"`,
+        thread: currentThread, threadTitle, createdBy: currentUser.email,
+        forUsers: otherAuthors, createdAt: serverTimestamp(), readBy: [currentUser.uid]
       });
     }
     messageInput.value = "";
@@ -776,7 +767,6 @@ window.addEventListener("DOMContentLoaded", () => {
 
   /* ======= NAVIGATION ======= */
   document.getElementById("backBoards")?.addEventListener("click", () => show("userboardScreen"));
-  document.getElementById("backFromBoards")?.addEventListener("click", () => show("userboardScreen"));
   document.getElementById("backThreads")?.addEventListener("click", () => show("threadScreen"));
   document.getElementById("backHome")?.addEventListener("click", () => goBack());
   document.getElementById("backFromAdmin")?.addEventListener("click", () => show("userboardScreen"));
@@ -868,6 +858,18 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("colNotifBtn")?.addEventListener("click", () => show("notifScreen"));
   document.getElementById("colLogoutBtn")?.addEventListener("click", async () => await signOut(auth));
   document.getElementById("colGoAdmin")?.addEventListener("click", () => { show("adminScreen"); initAdminPanel(); });
+
+  const colSearch = document.getElementById("colSearchInput");
+  colSearch?.addEventListener("input", () => {
+    const q = colSearch.value.trim().toLowerCase();
+    const container = document.getElementById("collectionsContainer");
+    if (!container) return;
+    container.querySelectorAll(".ub-board-list-item").forEach(item => {
+      const name = item.querySelector(".ub-board-list-name")?.textContent.toLowerCase() || "";
+      const col = item.querySelector(".ub-board-list-meta")?.textContent.toLowerCase() || "";
+      item.style.display = (!q || name.includes(q) || col.includes(q)) ? "" : "none";
+    });
+  });
   document.getElementById("backFromProfile")?.addEventListener("click", () => goBack());
   document.getElementById("ubViewAllBoards")?.addEventListener("click", () => show("userboardScreen"));
 
@@ -877,11 +879,8 @@ window.addEventListener("DOMContentLoaded", () => {
     const boardName = input.value.trim();
     await addDoc(collection(db, "boards"), { name: boardName, createBy: currentUser.email, createdAt: serverTimestamp() });
     await addDoc(collection(db, "notifications"), {
-      type: "new_board",
-      message: `📋 New board created: "${boardName}" by ${currentUser.email}`,
-      createdBy: currentUser.email,
-      createdAt: serverTimestamp(),
-      readBy: [currentUser.uid]
+      type: "new_board", message: `📋 New board created: "${boardName}" by ${currentUser.email}`,
+      createdBy: currentUser.email, createdAt: serverTimestamp(), readBy: [currentUser.uid]
     });
     input.value = "";
   });
@@ -907,7 +906,6 @@ window.addEventListener("DOMContentLoaded", () => {
 function loadSavedThreads() {
   const container = document.getElementById("ubSavedThreads");
   if (!container || !currentUser) return;
-
   onSnapshot(query(collection(db, "savedThreads"), where("uid", "==", currentUser.uid)), (snap) => {
     container.innerHTML = "";
     if (snap.empty) {
@@ -919,7 +917,6 @@ function loadSavedThreads() {
         </div>`;
       return;
     }
-
     const groups = {};
     snap.forEach(d => {
       const data = d.data();
@@ -927,13 +924,11 @@ function loadSavedThreads() {
       if (!groups[col]) groups[col] = [];
       groups[col].push({ id: d.id, ...data });
     });
-
     Object.entries(groups).forEach(([colName, threads]) => {
       const header = document.createElement("div");
       header.style.cssText = "font-size:12px;font-weight:700;color:#1A5849;text-transform:uppercase;letter-spacing:1px;margin:14px 0 6px;padding-left:4px;display:flex;align-items:center;gap:6px;";
       header.innerHTML = `<span>📁</span> ${colName} <span style="color:#bbb;font-weight:400;">(${threads.length})</span>`;
       container.appendChild(header);
-
       threads.forEach(data => {
         const item = document.createElement("div");
         item.className = "ub-board-list-item";
@@ -958,26 +953,6 @@ function loadSavedThreads() {
   });
 }
 
-function loadBoards() {
-  const boardList = document.getElementById("boardList");
-  if (!boardList) return;
-  onSnapshot(query(collection(db, "boards"), orderBy("createdAt", "desc")), (snap) => {
-    boardList.innerHTML = "";
-    snap.forEach(d => {
-      const div = document.createElement("div");
-      div.className = "ub-board-card";
-      div.innerHTML = `<div class="ub-board-icon">📋</div><div class="ub-board-name">${d.data().name}</div>`;
-      div.onclick = () => {
-        currentBoard = d.id;
-        document.getElementById("boardTitle").textContent = d.data().name;
-        show("threadScreen");
-        loadThreads();
-      };
-      boardList.appendChild(div);
-    });
-  });
-}
-
 function timeAgoStr(date) {
   const seconds = Math.floor((new Date() - date) / 1000);
   if (seconds < 60) return "Just now";
@@ -991,7 +966,6 @@ function timeAgoStr(date) {
 function loadThreads() {
   const threadList = document.getElementById("threadList");
   threadList.className = "th-post-list";
-
   const thBoardsList = document.getElementById("thBoardsList");
   if (thBoardsList) {
     getDocs(query(collection(db, "boards"), orderBy("createdAt", "desc"))).then(snap => {
@@ -1012,7 +986,6 @@ function loadThreads() {
       });
     });
   }
-
   if (currentUser) {
     getDocs(query(collection(db, "users"), where("uid", "==", currentUser.uid))).then(snap => {
       const profileIcon = !snap.empty ? (snap.docs[0].data().profileIcon || "default") : "default";
@@ -1021,20 +994,17 @@ function loadThreads() {
       if (thCreateAvatar) { thCreateAvatar.textContent = ic.emoji; thCreateAvatar.className = "th-create-avatar " + ic.gradientClass; }
     });
   }
-
   onSnapshot(query(collection(db, "threads"), where("board", "==", currentBoard)), (snap) => {
     threadList.innerHTML = "";
     if (snap.empty) {
       threadList.innerHTML = '<div class="sp-empty-state">No threads yet. Create the first one!</div>';
       return;
     }
-
     snap.docs.forEach(async (d) => {
       const data = d.data();
-      if (data.archived === true) return; // skip archived threads
+      if (data.archived === true) return;
       const timeAgo = data.createdAt?.toDate ? timeAgoStr(data.createdAt.toDate()) : "Just now";
       const ic = await getUserIcon(data.createdBy || "");
-
       const div = document.createElement("div");
       div.className = "th-post-card";
       div.innerHTML = `
@@ -1044,7 +1014,7 @@ function loadThreads() {
             <div class="th-post-title">${data.name}</div>
             <div class="th-post-sub">by ${data.createdBy || "unknown"} • ${timeAgo}</div>
           </div>
-          ${isAdmin() ? `<button class="th-post-menu">⋮</button>` : ""}
+          ${!isAdmin() ? `<button class="th-post-menu">⋮</button>` : ""}
         </div>
         ${data.content ? `<div class="th-post-content">${data.content}</div>` : ""}
         ${data.image ? `<img class="th-post-image" src="${data.image}" alt="post image" onclick="window.open(this.src,'_blank')">` : ""}
@@ -1061,35 +1031,31 @@ function loadThreads() {
           </button>
         </div>
       `;
-
-      if (isAdmin()) {
+      if (!isAdmin()) {
         div.querySelector(".th-post-menu")?.addEventListener("click", (e) => {
           e.stopPropagation();
           const modal = document.getElementById("postOptionsModal");
           modal.classList.remove("hidden");
           modal.dataset.threadId = d.id;
-          const archiveBtn = document.getElementById("archiveThreadBtn");
-          if (archiveBtn) archiveBtn.style.display = "flex";
+          modal.dataset.threadName = data.name;
+          const reportBtn = document.getElementById("reportThreadBtn");
+          if (reportBtn) reportBtn.style.display = "flex";
         });
       }
-
       div.querySelector(".th-comment-btn").addEventListener("click", () => {
         currentThread = d.id;
         document.getElementById("threadTitle").textContent = data.name;
         show("messageScreen");
         loadMessages();
       });
-
       const likeBtn = div.querySelector(".th-like-btn");
       const likeCountEl = div.querySelector(`#likes-${d.id}`);
       let liked = false;
-
       getDocs(query(collection(db, "likes"), where("threadId", "==", d.id))).then(likeSnap => {
         likeCountEl.textContent = likeSnap.size;
         liked = likeSnap.docs.some(l => l.data().uid === currentUser.uid);
         likeBtn.querySelector(".th-action-icon").textContent = liked ? "❤️" : "🤍";
       });
-
       likeBtn.addEventListener("click", async () => {
         if (liked) {
           const likeSnap = await getDocs(query(collection(db, "likes"), where("threadId", "==", d.id), where("uid", "==", currentUser.uid)));
@@ -1104,7 +1070,6 @@ function loadThreads() {
           likeCountEl.textContent = parseInt(likeCountEl.textContent) + 1;
         }
       });
-
       const bookmarkBtn = div.querySelector(".th-save-btn");
       getDocs(query(collection(db, "savedThreads"), where("threadId", "==", d.id), where("uid", "==", currentUser.uid))).then(snapCheck => {
         if (bookmarkBtn) {
@@ -1112,25 +1077,23 @@ function loadThreads() {
           bookmarkBtn.title = !snapCheck.empty ? "Saved! Click to change collection" : "Save to collection";
         }
       });
-
       bookmarkBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         openSaveCollectionModal(d.id, data.name);
       });
-
       threadList.appendChild(div);
     });
   });
 }
 
 function applyIcon(icon, updateSidebar = true) {
-  const iconMap = {
+  const localIconMap = {
     default: { emoji: "👤", class: "gradient-default" },
     fire:    { emoji: "🔥", class: "gradient-fire" },
     star:    { emoji: "⭐", class: "gradient-star" },
     bolt:    { emoji: "⚡", class: "gradient-bolt" }
   };
-  const ic = iconMap[icon] || iconMap["default"];
+  const ic = localIconMap[icon] || localIconMap["default"];
   const av = document.getElementById("profileAvatarCircle");
   if (av) { av.textContent = ic.emoji; av.className = "profile-avatar-circle " + ic.class; }
   if (updateSidebar) {
@@ -1142,12 +1105,9 @@ function applyIcon(icon, updateSidebar = true) {
 function loadProfile() {
   const user = currentUser;
   document.getElementById("profileEmail").textContent = user.email;
-
   const profileAv = document.getElementById("profileAvatarCircle");
   if (profileAv) { profileAv.textContent = "👤"; profileAv.className = "profile-avatar-circle gradient-default"; }
-
   let selectedIcon = "default";
-
   document.querySelectorAll(".profile-icon-option").forEach(opt => {
     opt.addEventListener("click", () => {
       document.querySelectorAll(".profile-icon-option").forEach(o => o.classList.remove("selected"));
@@ -1156,28 +1116,23 @@ function loadProfile() {
       applyIcon(selectedIcon, false);
     });
   });
-
   getDocs(query(collection(db, "users"), where("uid", "==", user.uid))).then(snap => {
     let userData = {};
     if (!snap.empty) userData = snap.docs[0].data();
-
     const username = userData.username || user.email.split("@")[0];
     document.getElementById("profileUsername").textContent = username;
     document.getElementById("profileUsernameInput").value = username;
     document.getElementById("profileBioInput").value = userData.bio || "";
-
     selectedIcon = userData.profileIcon || "default";
     document.querySelectorAll(".profile-icon-option").forEach(o => {
       o.classList.toggle("selected", o.dataset.icon === selectedIcon);
     });
     applyIcon(selectedIcon, true);
-
     const joined = snap.docs[0]?.data()?.joinedAt?.toDate?.();
     document.getElementById("profileJoined").textContent = joined
       ? `Joined: ${joined.toLocaleDateString()}`
       : `Joined: ${new Date(user.metadata.creationTime).toLocaleDateString()}`;
   });
-
   getDocs(query(collection(db, "messages"), where("author", "==", user.email))).then(s => {
     document.getElementById("profileStatPosts").textContent = s.size;
   });
@@ -1187,12 +1142,10 @@ function loadProfile() {
   getDocs(query(collection(db, "boards"), where("createBy", "==", user.email))).then(s => {
     document.getElementById("profileStatBoards").textContent = s.size;
   });
-
   const saveBtn = document.getElementById("profileSaveBtn");
   const saveMsg = document.getElementById("profileSaveMsg");
   const newSaveBtn = saveBtn.cloneNode(true);
   saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
-
   newSaveBtn.addEventListener("click", async () => {
     const newUsername = document.getElementById("profileUsernameInput").value.trim()
       || document.getElementById("profileUsername").textContent.trim();
@@ -1225,11 +1178,9 @@ function loadProfile() {
 function loadNotifications() {
   const notifList = document.getElementById("notifList");
   if (!notifList) return;
-
   onSnapshot(query(collection(db, "notifications"), orderBy("createdAt", "desc")), (snap) => {
     const uid = currentUser.uid;
     const email = currentUser.email;
-
     const mine = snap.docs.filter(d => {
       const data = d.data();
       if (data.readBy?.includes(uid)) return false;
@@ -1237,25 +1188,21 @@ function loadNotifications() {
       if (data.type === "new_reply" && data.forUsers?.includes(email)) return true;
       return false;
     });
-
     const badge = document.getElementById("ubNotifBadge");
     const badge2 = document.getElementById("ubNotifBadge2");
     if (badge) { badge.textContent = mine.length; badge.style.display = mine.length > 0 ? "flex" : "none"; }
     if (badge2) { badge2.textContent = mine.length; badge2.style.display = mine.length > 0 ? "flex" : "none"; }
-
     const visible = snap.docs.filter(d => {
       const data = d.data();
       if (data.type === "new_board" && data.createdBy !== email) return true;
       if (data.type === "new_reply" && data.forUsers?.includes(email)) return true;
       return false;
     });
-
     notifList.innerHTML = "";
     if (visible.length === 0) {
       notifList.innerHTML = '<div class="sp-empty-state">No notifications yet.</div>';
       return;
     }
-
     visible.forEach(d => {
       const data = d.data();
       const isRead = data.readBy?.includes(uid);
@@ -1283,7 +1230,6 @@ function loadMessages() {
   const messageList = document.getElementById("messageList");
   const msgSideThreadInfo = document.getElementById("msgSideThreadInfo");
   const msgSideBoardName = document.getElementById("msgSideBoardName");
-
   getDocs(query(collection(db, "threads"))).then(async snap => {
     const threadDoc = snap.docs.find(d => d.id === currentThread);
     if (threadDoc && msgSideThreadInfo) {
@@ -1300,14 +1246,12 @@ function loadMessages() {
       `;
     }
   });
-
   if (currentBoard && msgSideBoardName) {
     getDocs(query(collection(db, "boards"))).then(snap => {
       const boardDoc = snap.docs.find(d => d.id === currentBoard);
       if (boardDoc) msgSideBoardName.textContent = boardDoc.data().name;
     });
   }
-
   onSnapshot(query(collection(db, "messages"), where("thread", "==", currentThread), orderBy("time")), (snap) => {
     messageList.innerHTML = "";
     if (snap.empty) {
@@ -1342,35 +1286,29 @@ function loadMessages() {
 function loadCollectionsScreen() {
   const container = document.getElementById("collectionsContainer");
   if (!container || !currentUser) return;
-
   getDocs(query(collection(db, "users"), where("uid", "==", currentUser.uid))).then(snap => {
     const uname = !snap.empty ? (snap.docs[0].data().username || currentUser.email.split("@")[0]) : currentUser.email.split("@")[0];
     const profileIcon = !snap.empty ? (snap.docs[0].data().profileIcon || "default") : "default";
-    const iconMap = {
+    const localIconMap = {
       default: { emoji: "👤", class: "gradient-default" },
       fire:    { emoji: "🔥", class: "gradient-fire" },
       star:    { emoji: "⭐", class: "gradient-star" },
       bolt:    { emoji: "⚡", class: "gradient-bolt" }
     };
-    const ic = iconMap[profileIcon] || iconMap["default"];
+    const ic = localIconMap[profileIcon] || localIconMap["default"];
     const colHiText = document.getElementById("colHiText");
     const colSideUsername = document.getElementById("colSideUsername");
     const colSideAvatar = document.getElementById("colSideAvatar");
     if (colHiText) colHiText.textContent = "Hi, " + uname + "!";
     if (colSideUsername) colSideUsername.textContent = uname;
     if (colSideAvatar) { colSideAvatar.textContent = ic.emoji; colSideAvatar.className = "ub-user-card-avatar-circle " + ic.class; }
-
-    // Show admin button if user is admin
     const colAdminBtn = document.getElementById("colGoAdmin");
     if (colAdminBtn && isAdmin()) colAdminBtn.classList.remove("hidden");
   });
-
   const colBadge = document.getElementById("colNotifBadge");
   const mainBadge = document.getElementById("ubNotifBadge");
   if (colBadge && mainBadge) { colBadge.textContent = mainBadge.textContent; colBadge.style.display = mainBadge.style.display; }
-
   container.innerHTML = '<div style="color:#bbb;font-size:14px;text-align:center;padding:40px;">Loading...</div>';
-
   onSnapshot(query(collection(db, "savedThreads"), where("uid", "==", currentUser.uid)), (snap) => {
     container.innerHTML = "";
     if (snap.empty) {
@@ -1382,7 +1320,6 @@ function loadCollectionsScreen() {
         </div>`;
       return;
     }
-
     const groups = {};
     snap.forEach(d => {
       const data = d.data();
@@ -1390,13 +1327,11 @@ function loadCollectionsScreen() {
       if (!groups[col]) groups[col] = [];
       groups[col].push({ id: d.id, ...data });
     });
-
     Object.entries(groups).forEach(([colName, threads]) => {
       const header = document.createElement("div");
       header.style.cssText = "font-size:12px;font-weight:700;color:#1A5849;text-transform:uppercase;letter-spacing:1px;margin:14px 0 8px;padding-left:4px;display:flex;align-items:center;gap:6px;";
       header.innerHTML = `<span>📁</span> ${colName} <span style="color:#bbb;font-weight:400;">(${threads.length})</span>`;
       container.appendChild(header);
-
       threads.forEach(data => {
         const item = document.createElement("div");
         item.className = "ub-board-list-item";
@@ -1424,134 +1359,42 @@ function loadCollectionsScreen() {
 /* ================= ADMIN PANEL ================= */
 
 function showAdminPanel(panelId) {
-  const panels = ["adminPanelBoards","adminPanelThreads","adminPanelStats","adminPanelUsers"];
+  const panels = ["adminPanelStats", "adminPanelUsers", "adminPanelModeration"];
   panels.forEach(p => {
     const el = document.getElementById(p);
     if (el) el.style.display = p === panelId ? "block" : "none";
   });
-  document.querySelectorAll(".ub-side-btn[id^='adminManage'], .ub-side-btn[id^='adminView']").forEach(b => b.classList.remove("active"));
+  document.querySelectorAll(".ub-side-btn[id^='adminView'], #adminModerationBtn, #adminManageUsersBtn").forEach(b => b.classList.remove("active"));
   const btnMap = {
-    adminPanelBoards:  "adminManageBoardsBtn",
-    adminPanelThreads: "adminManageThreadsBtn",
-    adminPanelStats:   "adminViewStatsBtn",
-    adminPanelUsers:   "adminManageUsersBtn"
+    adminPanelStats:      "adminViewStatsBtn",
+    adminPanelUsers:      "adminManageUsersBtn",
+    adminPanelModeration: "adminModerationBtn"
   };
   const activeBtn = document.getElementById(btnMap[panelId]);
   if (activeBtn) activeBtn.classList.add("active");
-}
-
-function loadAdminBoards() {
-  const list = document.getElementById("adminBoardsList");
-  if (!list) return;
-  list.innerHTML = '<div style="color:#bbb;font-size:13px;text-align:center;padding:20px;">Loading...</div>';
-
-  getDocs(query(collection(db, "boards"), orderBy("createdAt", "desc"))).then(snap => {
-    list.innerHTML = "";
-    if (snap.empty) {
-      list.innerHTML = '<div style="color:#aaa;text-align:center;padding:40px;background:white;border-radius:14px;">No boards found.</div>';
-      return;
-    }
-    snap.forEach(d => {
-      const data = d.data();
-      const date = data.createdAt?.toDate ? data.createdAt.toDate().toLocaleDateString() : "—";
-      const row = document.createElement("div");
-      row.className = "admin-list-row";
-      row.innerHTML = `
-        <div class="admin-row-icon">📋</div>
-        <div class="admin-row-info">
-          <div class="admin-row-name">${data.name}</div>
-          <div class="admin-row-meta">by ${data.createBy || "unknown"} • ${date}</div>
-        </div>
-        <button class="admin-delete-btn" data-id="${d.id}" data-type="board">🗑 Delete</button>
-      `;
-      row.querySelector(".admin-delete-btn").addEventListener("click", async () => {
-        if (!confirm(`Delete board "${data.name}"? This cannot be undone.`)) return;
-        await deleteDoc(doc(db, "boards", d.id));
-        showToast("🗑️ Board deleted.");
-        loadAdminBoards();
-      });
-      list.appendChild(row);
-    });
-  });
-}
-
-function loadAdminThreads() {
-  const list = document.getElementById("adminThreadsList");
-  if (!list) return;
-  list.innerHTML = '<div style="color:#bbb;font-size:13px;text-align:center;padding:20px;">Loading...</div>';
-
-  getDocs(query(collection(db, "threads"), orderBy("createdAt", "desc"))).then(async snap => {
-    list.innerHTML = "";
-    if (snap.empty) {
-      list.innerHTML = '<div style="color:#aaa;text-align:center;padding:40px;background:white;border-radius:14px;">No threads found.</div>';
-      return;
-    }
-
-    // Get all boards to show board name
-    const boardsSnap = await getDocs(collection(db, "boards"));
-    const boardMap = {};
-    boardsSnap.forEach(b => { boardMap[b.id] = b.data().name; });
-
-    snap.forEach(d => {
-      const data = d.data();
-      const date = data.createdAt?.toDate ? data.createdAt.toDate().toLocaleDateString() : "—";
-      const boardName = boardMap[data.board] || "Unknown Board";
-      const isArchived = data.archived === true;
-      const row = document.createElement("div");
-      row.className = "admin-list-row";
-      row.innerHTML = `
-        <div class="admin-row-icon">${isArchived ? "📦" : "💬"}</div>
-        <div class="admin-row-info">
-          <div class="admin-row-name">${data.name} ${isArchived ? '<span style="font-size:11px;background:#fff8e1;color:#f59e0b;border-radius:999px;padding:2px 8px;font-weight:600;margin-left:6px;">Archived</span>' : ""}</div>
-          <div class="admin-row-meta">by ${data.createdBy || "unknown"} • ${date} • <span style="color:#1A5849;font-weight:600;">📋 ${boardName}</span></div>
-        </div>
-        <div style="display:flex;gap:8px;flex-shrink:0;">
-          ${isArchived ? `<button class="admin-unarchive-btn" data-id="${d.id}" style="width:auto!important;height:36px!important;padding:0 16px!important;border-radius:999px!important;border:none!important;background:#fff8e1!important;color:#b45309!important;font-size:13px!important;font-weight:600;cursor:pointer;margin:0!important;transition:background 0.15s;">↩ Restore</button>` : ""}
-          <button class="admin-delete-btn" data-id="${d.id}">🗑 Delete</button>
-        </div>
-      `;
-      row.querySelector(".admin-delete-btn").addEventListener("click", async () => {
-        if (!confirm(`Delete thread "${data.name}"? All replies will also be deleted.`)) return;
-        const msgsSnap = await getDocs(query(collection(db, "messages"), where("thread", "==", d.id)));
-        msgsSnap.forEach(async m => await deleteDoc(doc(db, "messages", m.id)));
-        const likesSnap = await getDocs(query(collection(db, "likes"), where("threadId", "==", d.id)));
-        likesSnap.forEach(async l => await deleteDoc(doc(db, "likes", l.id)));
-        await deleteDoc(doc(db, "threads", d.id));
-        showToast("🗑️ Thread and all replies deleted.");
-        loadAdminThreads();
-      });
-      if (isArchived) {
-        row.querySelector(".admin-unarchive-btn").addEventListener("click", async () => {
-          await updateDoc(doc(db, "threads", d.id), { archived: false });
-          showToast("✅ Thread restored to feed.");
-          loadAdminThreads();
-        });
-      }
-      list.appendChild(row);
-    });
-  });
 }
 
 function loadAdminStats() {
   const grid = document.getElementById("adminStatsGrid");
   if (!grid) return;
   grid.innerHTML = '<div style="color:#bbb;font-size:13px;text-align:center;padding:20px;grid-column:1/-1;">Loading...</div>';
-
   Promise.all([
     getDocs(collection(db, "boards")),
     getDocs(collection(db, "threads")),
     getDocs(collection(db, "messages")),
     getDocs(collection(db, "users")),
     getDocs(collection(db, "likes")),
-    getDocs(collection(db, "savedThreads"))
-  ]).then(([boards, threads, messages, users, likes, saved]) => {
+    getDocs(collection(db, "savedThreads")),
+    getDocs(query(collection(db, "reports"), where("status", "==", "pending")))
+  ]).then(([boards, threads, messages, users, likes, saved, reports]) => {
     const stats = [
-      { icon: "📋", label: "Total Boards",   value: boards.size },
-      { icon: "💬", label: "Total Threads",  value: threads.size },
-      { icon: "✉️",  label: "Total Replies",  value: messages.size },
-      { icon: "👥", label: "Total Users",    value: users.size },
-      { icon: "❤️", label: "Total Likes",    value: likes.size },
-      { icon: "🔖", label: "Saved Threads",  value: saved.size }
+      { icon: "📋", label: "Total Boards",    value: boards.size },
+      { icon: "💬", label: "Total Threads",   value: threads.size },
+      { icon: "✉️",  label: "Total Replies",   value: messages.size },
+      { icon: "👥", label: "Total Users",     value: users.size },
+      { icon: "❤️", label: "Total Likes",     value: likes.size },
+      { icon: "🔖", label: "Saved Threads",   value: saved.size },
+      { icon: "⚠️", label: "Pending Reports", value: reports.size }
     ];
     grid.innerHTML = "";
     stats.forEach(s => {
@@ -1572,7 +1415,6 @@ function loadAdminUsers() {
   const list = document.getElementById("adminUsersList");
   if (!list) return;
   list.innerHTML = '<div style="color:#bbb;font-size:13px;text-align:center;padding:20px;">Loading...</div>';
-
   getDocs(query(collection(db, "users"), orderBy("joinedAt", "desc"))).then(snap => {
     list.innerHTML = "";
     if (snap.empty) {
@@ -1598,40 +1440,285 @@ function loadAdminUsers() {
   });
 }
 
+function switchModerationTab(tab) {
+  ["modTabBoards","modTabThreads"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "none";
+  });
+  const target = document.getElementById("modTab" + tab);
+  if (target) target.style.display = "block";
+  document.querySelectorAll(".mod-tab-btn").forEach(b => {
+    b.style.background = "transparent";
+    b.style.color = "#666";
+    b.style.borderBottom = "3px solid transparent";
+  });
+  const activeBtn = document.getElementById("modBtn" + tab);
+  if (activeBtn) {
+    activeBtn.style.background = "transparent";
+    activeBtn.style.color = "#1A5849";
+    activeBtn.style.borderBottom = "3px solid #1A5849";
+  }
+}
+
+function loadModerationPanel() {
+  const container = document.getElementById("adminPanelModeration");
+  if (!container) return;
+  container.innerHTML = `
+    <div class="ub-banner" style="margin-bottom:24px;">
+      <div class="ub-banner-text">
+        <div class="ub-banner-greeting">🛡️ Content Review</div>
+        <div class="ub-banner-sub">Manage boards and threads</div>
+      </div>
+      <div class="ub-banner-art">⚖️</div>
+    </div>
+    <div style="display:flex;gap:0;background:white;border-radius:12px;padding:4px;margin-bottom:20px;box-shadow:0 1px 4px rgba(0,0,0,0.07);overflow:hidden;">
+      <button id="modBtnBoards" class="mod-tab-btn" style="flex:1;height:42px;border:none;border-bottom:3px solid #1A5849;background:transparent;color:#1A5849;font-size:14px;font-weight:600;cursor:pointer;border-radius:8px;margin:0;padding:0;">📋 Boards</button>
+      <button id="modBtnThreads" class="mod-tab-btn" style="flex:1;height:42px;border:none;border-bottom:3px solid transparent;background:transparent;color:#666;font-size:14px;font-weight:600;cursor:pointer;border-radius:8px;margin:0;padding:0;">💬 Threads</button>
+    </div>
+    <div id="modTabBoards" style="display:block;">
+      <div id="modBoardsList" style="display:flex;flex-direction:column;gap:10px;"></div>
+    </div>
+    <div id="modTabThreads" style="display:none;">
+      <div id="modThreadsList" style="display:flex;flex-direction:column;gap:10px;"></div>
+    </div>
+  `;
+  document.getElementById("modBtnBoards").addEventListener("click", () => { switchModerationTab("Boards"); loadModBoards(); });
+  document.getElementById("modBtnThreads").addEventListener("click", () => { switchModerationTab("Threads"); loadModThreads(); });
+  loadModBoards();
+}
+
+function loadModBoards() {
+  const list = document.getElementById("modBoardsList");
+  if (!list) return;
+  list.innerHTML = '<div style="color:#bbb;font-size:13px;text-align:center;padding:20px;">Loading...</div>';
+  getDocs(query(collection(db, "boards"), orderBy("createdAt", "desc"))).then(async snap => {
+    list.innerHTML = "";
+    if (snap.empty) { list.innerHTML = '<div style="color:#aaa;text-align:center;padding:40px;background:white;border-radius:14px;">No boards found.</div>'; return; }
+    const reportsSnap = await getDocs(query(collection(db, "reports"), where("type", "==", "board"), where("status", "==", "pending")));
+    const reportedBoards = {};
+    reportsSnap.forEach(r => {
+      const d = r.data();
+      if (!reportedBoards[d.boardId]) reportedBoards[d.boardId] = [];
+      reportedBoards[d.boardId].push({ id: r.id, ...d });
+    });
+    const allBoards = snap.docs.map(d => ({ docId: d.id, ...d.data(), _reports: reportedBoards[d.id] || [] }));
+    allBoards.sort((a, b) => (b._reports.length > 0 ? 1 : 0) - (a._reports.length > 0 ? 1 : 0));
+    const hasReported = allBoards.some(b => b._reports.length > 0);
+    if (hasReported) {
+      const label = document.createElement("div");
+      label.style.cssText = "font-size:11px;font-weight:700;color:#e53e3e;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;padding-left:4px;";
+      label.innerHTML = "🚨 Reported";
+      list.appendChild(label);
+    }
+    let passedReported = false;
+    allBoards.forEach(data => {
+      const reports = data._reports;
+      const isReported = reports.length > 0;
+      if (!isReported && hasReported && !passedReported) {
+        passedReported = true;
+        const divider = document.createElement("div");
+        divider.style.cssText = "font-size:11px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:1px;margin:14px 0 6px;padding-left:4px;";
+        divider.textContent = "All Boards";
+        list.appendChild(divider);
+      }
+      const date = data.createdAt?.toDate ? data.createdAt.toDate().toLocaleDateString() : "—";
+      const row = document.createElement("div");
+      row.className = "admin-list-row";
+      row.innerHTML = `
+        <div class="admin-row-icon" style="background:${isReported ? "#fff0f0" : "#e8f3f1"};">${isReported ? "🚨" : "📋"}</div>
+        <div class="admin-row-info">
+          <div class="admin-row-name">${data.name}
+            ${isReported ? `<span style="font-size:11px;background:#fee2e2;color:#e53e3e;border-radius:999px;padding:2px 8px;font-weight:600;margin-left:6px;">🚨 Reported (${reports.length})</span>` : ""}
+          </div>
+          <div class="admin-row-meta">by ${data.createBy || "unknown"} • ${date}</div>
+          ${isReported ? `<div style="font-size:11px;color:#e53e3e;margin-top:4px;">Reason: <strong>${reports[0].reason}</strong> • by ${reports[0].reportedBy}</div>` : ""}
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0;align-items:center;">
+          ${isReported ? `<button class="mod-dismiss-board-btn" style="width:auto!important;height:36px!important;padding:0 14px!important;border-radius:999px!important;border:none!important;background:#e8f3f1!important;color:#1A5849!important;font-size:13px!important;font-weight:600;cursor:pointer;margin:0!important;">✓ Dismiss</button>` : ""}
+          <button class="mod-delete-board-btn" style="width:auto!important;height:36px!important;padding:0 16px!important;border-radius:999px!important;border:none!important;background:#fff0f0!important;color:#e53e3e!important;font-size:13px!important;font-weight:600;cursor:pointer;margin:0!important;">🗑 Delete</button>
+        </div>
+      `;
+      row.querySelector(".mod-dismiss-board-btn")?.addEventListener("click", async () => {
+        for (const r of reports) await updateDoc(doc(db, "reports", r.id), { status: "resolved" });
+        showToast("✓ Report dismissed."); loadModBoards();
+      });
+      row.querySelector(".mod-delete-board-btn").addEventListener("click", async () => {
+        if (!confirm(`Delete board "${data.name}"? All threads, replies, likes, saves and notifications inside it will also be permanently deleted.`)) return;
+        // Get all threads in this board
+        const threadsSnap = await getDocs(query(collection(db, "threads"), where("board", "==", data.docId)));
+        for (const t of threadsSnap.docs) {
+          const threadId = t.id;
+          // Delete all replies
+          const msgsSnap = await getDocs(query(collection(db, "messages"), where("thread", "==", threadId)));
+          msgsSnap.forEach(async m => await deleteDoc(doc(db, "messages", m.id)));
+          // Delete all likes
+          const likesSnap = await getDocs(query(collection(db, "likes"), where("threadId", "==", threadId)));
+          likesSnap.forEach(async l => await deleteDoc(doc(db, "likes", l.id)));
+          // Delete all saved references
+          const savedSnap = await getDocs(query(collection(db, "savedThreads"), where("threadId", "==", threadId)));
+          savedSnap.forEach(async s => await deleteDoc(doc(db, "savedThreads", s.id)));
+          // Delete all saved collection references
+          const savedColSnap = await getDocs(query(collection(db, "savedCollections"), where("threadId", "==", threadId)));
+          savedColSnap.forEach(async s => await deleteDoc(doc(db, "savedCollections", s.id)));
+          // Delete all notifications
+          const notifSnap = await getDocs(query(collection(db, "notifications"), where("thread", "==", threadId)));
+          notifSnap.forEach(async n => await deleteDoc(doc(db, "notifications", n.id)));
+          // Delete the thread itself
+          await deleteDoc(doc(db, "threads", threadId));
+        }
+        // Resolve all reports for this board
+        for (const r of reports) await updateDoc(doc(db, "reports", r.id), { status: "resolved" });
+        // Delete the board itself
+        await deleteDoc(doc(db, "boards", data.docId));
+        showToast("🗑️ Board and all related data deleted."); loadModBoards();
+      });
+      list.appendChild(row);
+    });
+  });
+}
+
+function loadModThreads() {
+  const list = document.getElementById("modThreadsList");
+  if (!list) return;
+  list.innerHTML = '<div style="color:#bbb;font-size:13px;text-align:center;padding:20px;">Loading...</div>';
+  getDocs(query(collection(db, "threads"), orderBy("createdAt", "desc"))).then(async snap => {
+    list.innerHTML = "";
+    if (snap.empty) { list.innerHTML = '<div style="color:#aaa;text-align:center;padding:40px;background:white;border-radius:14px;">No threads found.</div>'; return; }
+    const boardsSnap = await getDocs(collection(db, "boards"));
+    const boardMap = {};
+    boardsSnap.forEach(b => { boardMap[b.id] = b.data().name; });
+    const reportsSnap = await getDocs(query(collection(db, "reports"), where("type", "==", "thread"), where("status", "==", "pending")));
+    const reportedThreads = {};
+    reportsSnap.forEach(r => {
+      const d = r.data();
+      if (!reportedThreads[d.threadId]) reportedThreads[d.threadId] = [];
+      reportedThreads[d.threadId].push({ id: r.id, ...d });
+    });
+    const allThreads = snap.docs.map(d => ({ docId: d.id, ...d.data(), _reports: reportedThreads[d.id] || [] }));
+    allThreads.sort((a, b) => {
+      const aScore = a._reports.length > 0 ? 2 : a.archived ? 0 : 1;
+      const bScore = b._reports.length > 0 ? 2 : b.archived ? 0 : 1;
+      return bScore - aScore;
+    });
+    const hasReported = allThreads.some(t => t._reports.length > 0);
+    let shownReportedLabel = false;
+    let shownAllLabel = false;
+    allThreads.forEach(data => {
+      const reports = data._reports;
+      const isReported = reports.length > 0;
+      const isArchived = data.archived === true;
+      const date = data.createdAt?.toDate ? data.createdAt.toDate().toLocaleDateString() : "—";
+      const boardName = boardMap[data.board] || "Unknown Board";
+      if (isReported && !shownReportedLabel) {
+        shownReportedLabel = true;
+        const label = document.createElement("div");
+        label.style.cssText = "font-size:11px;font-weight:700;color:#e53e3e;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;padding-left:4px;";
+        label.innerHTML = "🚨 Reported";
+        list.appendChild(label);
+      }
+      if (!isReported && !shownAllLabel && hasReported) {
+        shownAllLabel = true;
+        const divider = document.createElement("div");
+        divider.style.cssText = "font-size:11px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:1px;margin:14px 0 6px;padding-left:4px;";
+        divider.textContent = "All Threads";
+        list.appendChild(divider);
+      }
+      const row = document.createElement("div");
+      row.className = "admin-list-row";
+      row.innerHTML = `
+        <div class="admin-row-icon" style="background:${isReported ? "#fff0f0" : "#e8f3f1"};">${isArchived ? "📦" : isReported ? "🚨" : "💬"}</div>
+        <div class="admin-row-info">
+          <div class="admin-row-name">${data.name}
+            ${isReported && !isArchived ? `<span style="font-size:11px;background:#fee2e2;color:#e53e3e;border-radius:999px;padding:2px 8px;font-weight:600;margin-left:6px;">🚨 Reported (${reports.length})</span>` : ""}
+            ${isArchived ? '<span style="font-size:11px;background:#fff8e1;color:#f59e0b;border-radius:999px;padding:2px 8px;font-weight:600;margin-left:6px;">Archived</span>' : ""}
+            ${!isArchived && !isReported ? '<span style="font-size:11px;background:#e8f3f1;color:#1A5849;border-radius:999px;padding:2px 8px;font-weight:600;margin-left:6px;">Active</span>' : ""}
+          </div>
+          <div class="admin-row-meta">by ${data.createdBy || "unknown"} • ${date} • <span style="color:#1A5849;font-weight:600;">📋 ${boardName}</span></div>
+          ${isReported && !isArchived ? `<div style="font-size:11px;color:#e53e3e;margin-top:4px;">Reason: <strong>${reports[0].reason}</strong> • by ${reports[0].reportedBy}</div>` : ""}
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0;align-items:center;">
+          ${isArchived
+            ? `<button class="mod-restore-btn" style="width:auto!important;height:36px!important;padding:0 14px!important;border-radius:999px!important;border:none!important;background:#fff8e1!important;color:#b45309!important;font-size:13px!important;font-weight:600;cursor:pointer;margin:0!important;">↩ Restore</button>
+               <button class="mod-delete-thread-btn" style="width:auto!important;height:36px!important;padding:0 14px!important;border-radius:999px!important;border:none!important;background:#fff0f0!important;color:#e53e3e!important;font-size:13px!important;font-weight:600;cursor:pointer;margin:0!important;">🗑 Delete</button>`
+            : `${isReported ? `<button class="mod-dismiss-thread-btn" style="width:auto!important;height:36px!important;padding:0 14px!important;border-radius:999px!important;border:none!important;background:#e8f3f1!important;color:#1A5849!important;font-size:13px!important;font-weight:600;cursor:pointer;margin:0!important;">✓ Dismiss</button>` : ""}
+               <button class="mod-archive-btn" style="width:auto!important;height:36px!important;padding:0 14px!important;border-radius:999px!important;border:none!important;background:#fff8e1!important;color:#b45309!important;font-size:13px!important;font-weight:600;cursor:pointer;margin:0!important;">📦 Archive</button>
+               ${isReported ? `<button class="mod-delete-thread-btn" style="width:auto!important;height:36px!important;padding:0 14px!important;border-radius:999px!important;border:none!important;background:#fff0f0!important;color:#e53e3e!important;font-size:13px!important;font-weight:600;cursor:pointer;margin:0!important;">🗑 Delete</button>` : ""}`
+          }
+        </div>
+      `;
+      row.querySelector(".mod-dismiss-thread-btn")?.addEventListener("click", async () => {
+        for (const r of reports) await updateDoc(doc(db, "reports", r.id), { status: "resolved" });
+        showToast("✓ Report dismissed."); loadModThreads();
+      });
+      row.querySelector(".mod-archive-btn")?.addEventListener("click", async () => {
+        if (!confirm(`Archive "${data.name}"?`)) return;
+        await updateDoc(doc(db, "threads", data.docId), { archived: true });
+        for (const r of reports) await updateDoc(doc(db, "reports", r.id), { status: "resolved" });
+        showToast("📦 Thread archived."); loadModThreads();
+      });
+      row.querySelector(".mod-delete-thread-btn")?.addEventListener("click", async () => {
+        if (!confirm(`Delete "${data.name}"? All replies, likes, saves and notifications will also be permanently deleted.`)) return;
+        // Delete all replies
+        const msgsSnap = await getDocs(query(collection(db, "messages"), where("thread", "==", data.docId)));
+        msgsSnap.forEach(async m => await deleteDoc(doc(db, "messages", m.id)));
+        // Delete all likes
+        const likesSnap = await getDocs(query(collection(db, "likes"), where("threadId", "==", data.docId)));
+        likesSnap.forEach(async l => await deleteDoc(doc(db, "likes", l.id)));
+        // Delete all saved references
+        const savedSnap = await getDocs(query(collection(db, "savedThreads"), where("threadId", "==", data.docId)));
+        savedSnap.forEach(async s => await deleteDoc(doc(db, "savedThreads", s.id)));
+        // Delete all saved collection references
+        const savedColSnap = await getDocs(query(collection(db, "savedCollections"), where("threadId", "==", data.docId)));
+        savedColSnap.forEach(async s => await deleteDoc(doc(db, "savedCollections", s.id)));
+        // Delete all notifications about this thread
+        const notifSnap = await getDocs(query(collection(db, "notifications"), where("thread", "==", data.docId)));
+        notifSnap.forEach(async n => await deleteDoc(doc(db, "notifications", n.id)));
+        // Resolve all reports
+        for (const r of reports) await updateDoc(doc(db, "reports", r.id), { status: "resolved" });
+        // Delete the thread itself
+        await deleteDoc(doc(db, "threads", data.docId));
+        showToast("🗑️ Thread and all related data deleted."); loadModThreads();
+      });
+      row.querySelector(".mod-restore-btn")?.addEventListener("click", async () => {
+        await updateDoc(doc(db, "threads", data.docId), { archived: false });
+        showToast("✅ Thread restored."); loadModThreads();
+      });
+      list.appendChild(row);
+    });
+  });
+}
+
 let _adminInitialized = false;
 
 function initAdminPanel() {
-  // Populate admin name
   getDocs(query(collection(db, "users"), where("uid", "==", currentUser.uid))).then(snap => {
     const uname = !snap.empty ? (snap.docs[0].data().username || currentUser.email.split("@")[0]) : currentUser.email.split("@")[0];
+    const profileIcon = !snap.empty ? (snap.docs[0].data().profileIcon || "default") : "default";
+    const ic = iconMap[profileIcon] || iconMap["default"];
     const adminHiText = document.getElementById("adminHiText");
     const adminSideUsername = document.getElementById("adminSideUsername");
+    const adminSideAvatar = document.getElementById("adminSideAvatar");
     if (adminHiText) adminHiText.textContent = "Hi, " + uname + "!";
     if (adminSideUsername) adminSideUsername.textContent = uname;
+    if (adminSideAvatar) {
+      adminSideAvatar.textContent = ic.emoji;
+      adminSideAvatar.className = "ub-user-card-avatar-circle " + ic.gradientClass;
+    }
   });
-
-  // Sync notif badge
   const mainBadge = document.getElementById("ubNotifBadge");
   const adminBadge = document.getElementById("adminNotifBadge");
   if (adminBadge && mainBadge) {
     adminBadge.textContent = mainBadge.textContent;
     adminBadge.style.display = mainBadge.style.display;
   }
-
-  // Default: show stats
   showAdminPanel("adminPanelStats");
   loadAdminStats();
-
   if (_adminInitialized) return;
   _adminInitialized = true;
-
-  // Sidebar nav
-  document.getElementById("adminManageBoardsBtn")?.addEventListener("click", () => { showAdminPanel("adminPanelBoards"); loadAdminBoards(); });
-  document.getElementById("adminManageThreadsBtn")?.addEventListener("click", () => { showAdminPanel("adminPanelThreads"); loadAdminThreads(); });
   document.getElementById("adminViewStatsBtn")?.addEventListener("click", () => { showAdminPanel("adminPanelStats"); loadAdminStats(); });
   document.getElementById("adminManageUsersBtn")?.addEventListener("click", () => { showAdminPanel("adminPanelUsers"); loadAdminUsers(); });
+  document.getElementById("adminModerationBtn")?.addEventListener("click", () => { showAdminPanel("adminPanelModeration"); loadModerationPanel(); });
   document.getElementById("adminGoBoards")?.addEventListener("click", () => show("userboardScreen"));
-  document.getElementById("adminGoCollections")?.addEventListener("click", () => { show("collectionsScreen"); loadCollectionsScreen(); });
   document.getElementById("adminGoProfile")?.addEventListener("click", () => { show("profileScreen"); loadProfile(); });
   document.getElementById("adminNotifBtn")?.addEventListener("click", () => show("notifScreen"));
 }
