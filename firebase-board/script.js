@@ -42,24 +42,64 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
+
+/* ================= IMAGEKIT AUTH ================= */
+
+async function getImageKitAuth() {
+  const publicKey = "public_isps5my0lucp46J/DyUpeaPZNL0=";
+  const privateKey = "private_Ba3z84wQ/y8n1GKVBs7vQ5BJH2k=";
+
+  const token = Math.random().toString(36).substring(2);
+  const expire = Math.floor(Date.now() / 1000) + 60 * 5; 
+
+  const stringToSign = token + expire;
+
+  // Create SHA1 signature
+  const encoder = new TextEncoder();
+  const data = encoder.encode(stringToSign + privateKey);
+
+  const hashBuffer = await crypto.subtle.digest("SHA-1", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const signature = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+
+  return { publicKey, token, expire, signature };
+}
+
 /* ================= IMAGEKIT UPLOAD ================= */
 
 async function uploadToImageKit(file) {
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("fileName", file.name);
+  try {
+    const auth = await getImageKitAuth();
 
-  const res = await fetch("https://upload.imagekit.io/api/v1/files/upload", {
-    method: "POST",
-    headers: {
-      Authorization: "Basic " + btoa("public_YJcnOCqlESuiLxcybkWCsh5j+Ms=:")
-    },
-    body: formData
-  });
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("fileName", Date.now() + "_" + file.name);
 
-  const data = await res.json();
-  if (!data.url) { console.error("ImageKit upload failed", data); return null; }
-  return data.url;
+    formData.append("publicKey", auth.publicKey);
+    formData.append("signature", auth.signature);
+    formData.append("expire", auth.expire);
+    formData.append("token", auth.token);
+
+    const res = await fetch("https://upload.imagekit.io/api/v1/files/upload", {
+      method: "POST",
+      body: formData
+    });
+
+    const data = await res.json();
+
+    console.log("ImageKit response:", data);
+
+    if (!data.url) {
+      alert("Upload failed.");
+      return null;
+    }
+
+    return data.url;
+
+  } catch (err) {
+    console.error("Upload crash:", err);
+    return null;
+  }
 }
 
 /* ================= ADMIN ================= */
@@ -197,7 +237,7 @@ function loadUserboardBoards() {
       };
       grid.appendChild(card);
     });
-  });
+  }); 
 }
 
 function initUserboard(user) {
@@ -612,7 +652,14 @@ window.addEventListener("DOMContentLoaded", () => {
     createThreadBtn.textContent = "Posting...";
     createThreadBtn.disabled = true;
     let photoURL = null;
-    if (ctSelectedPhoto) photoURL = await uploadToImageKit(ctSelectedPhoto);
+    if (ctSelectedPhoto) {
+  photoURL = await uploadToImageKit(ctSelectedPhoto);
+  if (!photoURL) {
+    createThreadBtn.textContent = "Post";
+    createThreadBtn.disabled = false;
+    return;
+  }
+}
     await addDoc(collection(db, "threads"), {
       board: currentBoard,
       name: newThreadInput.value.trim(),
