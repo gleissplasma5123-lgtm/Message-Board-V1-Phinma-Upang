@@ -64,7 +64,7 @@ async function uploadToImageKit(file) {
 
 /* ================= ADMIN ================= */
 
-const ADMIN_EMAILS = ["admin@test.com"];
+const ADMIN_EMAILS = ["admin@test.com", "monje.0105@gmail.com"];
 const isAdmin = () => ADMIN_EMAILS.includes(currentUser?.email);
 
 /* ================= STATE ================= */
@@ -77,11 +77,31 @@ let allBoards = [];
 let _saveThreadId = null;
 let _saveThreadName = null;
 
+/* ================= USER ICON CACHE ================= */
+
+const userIconCache = {}; // email -> { emoji, gradientClass }
+
+const iconMap = {
+  default: { emoji: "👤", gradientClass: "gradient-default" },
+  fire:    { emoji: "🔥", gradientClass: "gradient-fire" },
+  star:    { emoji: "⭐", gradientClass: "gradient-star" },
+  bolt:    { emoji: "⚡", gradientClass: "gradient-bolt" }
+};
+
+async function getUserIcon(email) {
+  if (userIconCache[email]) return userIconCache[email];
+  const snap = await getDocs(query(collection(db, "users"), where("email", "==", email)));
+  const icon = !snap.empty ? (snap.docs[0].data().profileIcon || "default") : "default";
+  const result = iconMap[icon] || iconMap["default"];
+  userIconCache[email] = result;
+  return result;
+}
+
 /* ================= SCREENS ================= */
 
 const screens = [
   "loginScreen","registerScreen","userboardScreen","profileScreen",
-  "boardScreen","threadScreen","messageScreen","notifScreen","adminScreen","collectionsScreen"
+  "threadScreen","messageScreen","notifScreen","adminScreen","collectionsScreen"
 ];
 
 let previousScreen = "userboardScreen";
@@ -116,6 +136,7 @@ function goBack() {
   else if (prev === "profileScreen") loadProfile();
   else if (prev === "collectionsScreen") loadCollectionsScreen();
   else if (prev === "notifScreen") loadNotifications();
+  else if (prev === "adminScreen") initAdminPanel();
 }
 
 /* ================= USERBOARD ================= */
@@ -330,13 +351,26 @@ window.addEventListener("DOMContentLoaded", () => {
     if (el) el.classList.add("hidden");
   });
 
-  onAuthStateChanged(auth, (user) => {
+  onAuthStateChanged(auth, async (user) => {
     const loader = document.getElementById("appLoader");
     if (loader) loader.style.display = "none";
 
     if (user) {
-      if (!user.emailVerified) { show("loginScreen"); return; }
-      currentUser = user;
+      // Reload to get fresh emailVerified status from Firebase Auth
+      await user.reload();
+      const freshUser = auth.currentUser;
+
+      if (!freshUser.emailVerified) { show("loginScreen"); return; }
+      currentUser = freshUser;
+
+      // Sync emailVerified to Firestore
+      const userSnap = await getDocs(query(collection(db, "users"), where("uid", "==", freshUser.uid)));
+      if (!userSnap.empty) {
+        const userDoc = userSnap.docs[0];
+        if (!userDoc.data().emailVerified) {
+          await updateDoc(doc(db, "users", userDoc.id), { emailVerified: true });
+        }
+      }
 
       const savedScreen = sessionStorage.getItem("currentScreen");
       const savedBoard = sessionStorage.getItem("currentBoard");
@@ -367,6 +401,7 @@ window.addEventListener("DOMContentLoaded", () => {
         else if (savedScreen === "messageScreen" && savedThread) loadMessages();
         else if (savedScreen === "profileScreen") loadProfile();
         else if (savedScreen === "collectionsScreen") loadCollectionsScreen();
+        else if (savedScreen === "adminScreen") initAdminPanel();
       } else {
         show("userboardScreen");
       }
@@ -397,13 +432,27 @@ window.addEventListener("DOMContentLoaded", () => {
     loginBtn.disabled = true;
     try {
       const userCred = await signInWithEmailAndPassword(auth, emailVal, passVal);
-      if (!userCred.user.emailVerified) {
+      // Force reload to get latest emailVerified status from Firebase Auth
+      await userCred.user.reload();
+      const freshUser = auth.currentUser;
+
+      if (!freshUser.emailVerified) {
         await signOut(auth);
         loginBtn.textContent = "Log In";
         loginBtn.disabled = false;
         alert("❌ Your email is not verified yet. Please check your inbox.");
         return;
       }
+
+      // Update emailVerified in Firestore if not already done
+      const userSnap = await getDocs(query(collection(db, "users"), where("uid", "==", freshUser.uid)));
+      if (!userSnap.empty) {
+        const userDoc = userSnap.docs[0];
+        if (!userDoc.data().emailVerified) {
+          await updateDoc(doc(db, "users", userDoc.id), { emailVerified: true });
+        }
+      }
+
       loginBtn.textContent = "Log In";
       loginBtn.disabled = false;
     } catch (e) {
@@ -505,9 +554,13 @@ window.addEventListener("DOMContentLoaded", () => {
       document.getElementById("postOptionsModal").classList.add("hidden");
     }
   });
-  document.getElementById("archiveThreadBtn")?.addEventListener("click", () => {
+  document.getElementById("archiveThreadBtn")?.addEventListener("click", async () => {
+    const threadId = document.getElementById("postOptionsModal").dataset.threadId;
+    if (!threadId) return;
     document.getElementById("postOptionsModal").classList.add("hidden");
-    alert("Thread archived.");
+    if (!confirm("Archive this thread? It will be hidden from the feed.")) return;
+    await updateDoc(doc(db, "threads", threadId), { archived: true });
+    showToast("📦 Thread archived.");
   });
   document.getElementById("reportThreadBtn")?.addEventListener("click", () => {
     document.getElementById("postOptionsModal").classList.add("hidden");
@@ -536,12 +589,14 @@ window.addEventListener("DOMContentLoaded", () => {
     createThreadModal.classList.remove("hidden");
     getDocs(query(collection(db, "users"), where("uid", "==", currentUser.uid))).then(snap => {
       const uname = !snap.empty ? (snap.docs[0].data().username || currentUser.email.split("@")[0]) : currentUser.email.split("@")[0];
+      const profileIcon = !snap.empty ? (snap.docs[0].data().profileIcon || "default") : "default";
+      const ic = iconMap[profileIcon] || iconMap["default"];
       const ctUserName = document.getElementById("ctUserName");
       const ctUserAvatar = document.getElementById("ctUserAvatar");
       const thCreateAvatar = document.getElementById("thCreateAvatar");
       if (ctUserName) ctUserName.textContent = uname;
-      if (ctUserAvatar) ctUserAvatar.textContent = uname.slice(0,2).toUpperCase();
-      if (thCreateAvatar) thCreateAvatar.textContent = uname.slice(0,2).toUpperCase();
+      if (ctUserAvatar) { ctUserAvatar.textContent = ic.emoji; ctUserAvatar.className = "ct-user-avatar " + ic.gradientClass; }
+      if (thCreateAvatar) { thCreateAvatar.textContent = ic.emoji; thCreateAvatar.className = "th-create-avatar " + ic.gradientClass; }
     });
   });
 
@@ -756,17 +811,18 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("ubNotifBtn2")?.addEventListener("click", () => show("notifScreen"));
   document.getElementById("ubProfileBtn2")?.addEventListener("click", () => { show("profileScreen"); loadProfile(); });
   document.getElementById("ubNotifBtn")?.addEventListener("click", () => show("notifScreen"));
-  document.getElementById("ubGoBoards")?.addEventListener("click", () => show("boardScreen"));
+  document.getElementById("ubGoBoards")?.addEventListener("click", () => show("userboardScreen"));
   document.getElementById("ubGoCategories")?.addEventListener("click", () => { show("collectionsScreen"); loadCollectionsScreen(); });
   document.getElementById("ubGoProfile")?.addEventListener("click", () => { show("profileScreen"); loadProfile(); });
-  document.getElementById("ubGoAdmin")?.addEventListener("click", () => show("adminScreen"));
-  document.getElementById("backFromCollections")?.addEventListener("click", () => show("userboardScreen"));
-  document.getElementById("colGoBoards")?.addEventListener("click", () => show("boardScreen"));
+  document.getElementById("ubGoAdmin")?.addEventListener("click", () => { show("adminScreen"); initAdminPanel(); });
+  document.getElementById("backFromCollections")?.addEventListener("click", () => goBack());
+  document.getElementById("colGoBoards")?.addEventListener("click", () => show("userboardScreen"));
   document.getElementById("colGoProfile")?.addEventListener("click", () => { show("profileScreen"); loadProfile(); });
   document.getElementById("colNotifBtn")?.addEventListener("click", () => show("notifScreen"));
   document.getElementById("colLogoutBtn")?.addEventListener("click", async () => await signOut(auth));
+  document.getElementById("colGoAdmin")?.addEventListener("click", () => { show("adminScreen"); initAdminPanel(); });
   document.getElementById("backFromProfile")?.addEventListener("click", () => goBack());
-  document.getElementById("ubViewAllBoards")?.addEventListener("click", () => show("boardScreen"));
+  document.getElementById("ubViewAllBoards")?.addEventListener("click", () => show("userboardScreen"));
 
   document.getElementById("ubCreateBoardBtn")?.addEventListener("click", async () => {
     const input = document.getElementById("ubNewBoardInput");
@@ -912,9 +968,10 @@ function loadThreads() {
 
   if (currentUser) {
     getDocs(query(collection(db, "users"), where("uid", "==", currentUser.uid))).then(snap => {
-      const uname = !snap.empty ? (snap.docs[0].data().username || currentUser.email.split("@")[0]) : currentUser.email.split("@")[0];
+      const profileIcon = !snap.empty ? (snap.docs[0].data().profileIcon || "default") : "default";
+      const ic = iconMap[profileIcon] || iconMap["default"];
       const thCreateAvatar = document.getElementById("thCreateAvatar");
-      if (thCreateAvatar) thCreateAvatar.textContent = uname.slice(0,2).toUpperCase();
+      if (thCreateAvatar) { thCreateAvatar.textContent = ic.emoji; thCreateAvatar.className = "th-create-avatar " + ic.gradientClass; }
     });
   }
 
@@ -924,24 +981,23 @@ function loadThreads() {
       threadList.innerHTML = '<div class="sp-empty-state">No threads yet. Create the first one!</div>';
       return;
     }
-    const colors = ["#1A5849","#2F645F","#3d8a80","#4a9e92","#1e6b5e"];
 
-    snap.docs.forEach((d, i) => {
+    snap.docs.forEach(async (d) => {
       const data = d.data();
-      const color = colors[i % colors.length];
-      const initials = (data.createdBy || data.name).slice(0,2).toUpperCase();
+      if (data.archived === true) return; // skip archived threads
       const timeAgo = data.createdAt?.toDate ? timeAgoStr(data.createdAt.toDate()) : "Just now";
+      const ic = await getUserIcon(data.createdBy || "");
 
       const div = document.createElement("div");
       div.className = "th-post-card";
       div.innerHTML = `
         <div class="th-post-header">
-          <div class="th-post-avatar" style="background:${color}">${initials}</div>
+          <div class="th-post-avatar ${ic.gradientClass}">${ic.emoji}</div>
           <div class="th-post-meta">
             <div class="th-post-title">${data.name}</div>
             <div class="th-post-sub">by ${data.createdBy || "unknown"} • ${timeAgo}</div>
           </div>
-          <button class="th-post-menu">⋮</button>
+          ${isAdmin() ? `<button class="th-post-menu">⋮</button>` : ""}
         </div>
         ${data.content ? `<div class="th-post-content">${data.content}</div>` : ""}
         ${data.image ? `<img class="th-post-image" src="${data.image}" alt="post image" onclick="window.open(this.src,'_blank')">` : ""}
@@ -959,11 +1015,16 @@ function loadThreads() {
         </div>
       `;
 
-      div.querySelector(".th-post-menu").addEventListener("click", (e) => {
-        e.stopPropagation();
-        document.getElementById("postOptionsModal").classList.remove("hidden");
-        document.getElementById("postOptionsModal").dataset.threadId = d.id;
-      });
+      if (isAdmin()) {
+        div.querySelector(".th-post-menu")?.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const modal = document.getElementById("postOptionsModal");
+          modal.classList.remove("hidden");
+          modal.dataset.threadId = d.id;
+          const archiveBtn = document.getElementById("archiveThreadBtn");
+          if (archiveBtn) archiveBtn.style.display = "flex";
+        });
+      }
 
       div.querySelector(".th-comment-btn").addEventListener("click", () => {
         currentThread = d.id;
@@ -1176,14 +1237,14 @@ function loadMessages() {
   const msgSideThreadInfo = document.getElementById("msgSideThreadInfo");
   const msgSideBoardName = document.getElementById("msgSideBoardName");
 
-  getDocs(query(collection(db, "threads"))).then(snap => {
+  getDocs(query(collection(db, "threads"))).then(async snap => {
     const threadDoc = snap.docs.find(d => d.id === currentThread);
     if (threadDoc && msgSideThreadInfo) {
       const td = threadDoc.data();
-      const initials = (td.createdBy || "U").slice(0,2).toUpperCase();
+      const ic = await getUserIcon(td.createdBy || "");
       const timeAgo = td.createdAt?.toDate ? timeAgoStr(td.createdAt.toDate()) : "Just now";
       msgSideThreadInfo.innerHTML = `
-        <div class="msg-side-avatar" style="background:#1A5849">${initials}</div>
+        <div class="msg-side-avatar ${ic.gradientClass}">${ic.emoji}</div>
         <div class="msg-side-thread-title">${td.name}</div>
         <div class="msg-side-thread-by">by ${td.createdBy || "unknown"}</div>
         <div class="msg-side-thread-time">🕐 ${timeAgo}</div>
@@ -1206,16 +1267,16 @@ function loadMessages() {
       messageList.innerHTML = '<div class="msg-no-replies">No replies yet. Be the first!</div>';
       return;
     }
-    snap.forEach(d => {
+    snap.forEach(async d => {
       const data = d.data();
-      const initials = data.author.slice(0,2).toUpperCase();
+      const ic = await getUserIcon(data.author);
       const time = data.time?.toDate ? data.time.toDate().toLocaleString() : "";
       const isMe = data.author === currentUser.email;
       const div = document.createElement("div");
       div.className = "msg-reply-card-item" + (isMe ? " msg-reply-me" : "");
       div.innerHTML = `
         <div class="msg-reply-item-header">
-          <div class="msg-reply-avatar" style="background:${isMe ? "#1A5849" : "#3d8a80"}">${initials}</div>
+          <div class="msg-reply-avatar ${ic.gradientClass}">${ic.emoji}</div>
           <div>
             <div class="msg-reply-author">${data.author}</div>
             <div class="msg-reply-time">${time}</div>
@@ -1251,6 +1312,10 @@ function loadCollectionsScreen() {
     if (colHiText) colHiText.textContent = "Hi, " + uname + "!";
     if (colSideUsername) colSideUsername.textContent = uname;
     if (colSideAvatar) { colSideAvatar.textContent = ic.emoji; colSideAvatar.className = "ub-user-card-avatar-circle " + ic.class; }
+
+    // Show admin button if user is admin
+    const colAdminBtn = document.getElementById("colGoAdmin");
+    if (colAdminBtn && isAdmin()) colAdminBtn.classList.remove("hidden");
   });
 
   const colBadge = document.getElementById("colNotifBadge");
@@ -1307,4 +1372,219 @@ function loadCollectionsScreen() {
       });
     });
   });
+}
+
+/* ================= ADMIN PANEL ================= */
+
+function showAdminPanel(panelId) {
+  const panels = ["adminPanelBoards","adminPanelThreads","adminPanelStats","adminPanelUsers"];
+  panels.forEach(p => {
+    const el = document.getElementById(p);
+    if (el) el.style.display = p === panelId ? "block" : "none";
+  });
+  document.querySelectorAll(".ub-side-btn[id^='adminManage'], .ub-side-btn[id^='adminView']").forEach(b => b.classList.remove("active"));
+  const btnMap = {
+    adminPanelBoards:  "adminManageBoardsBtn",
+    adminPanelThreads: "adminManageThreadsBtn",
+    adminPanelStats:   "adminViewStatsBtn",
+    adminPanelUsers:   "adminManageUsersBtn"
+  };
+  const activeBtn = document.getElementById(btnMap[panelId]);
+  if (activeBtn) activeBtn.classList.add("active");
+}
+
+function loadAdminBoards() {
+  const list = document.getElementById("adminBoardsList");
+  if (!list) return;
+  list.innerHTML = '<div style="color:#bbb;font-size:13px;text-align:center;padding:20px;">Loading...</div>';
+
+  getDocs(query(collection(db, "boards"), orderBy("createdAt", "desc"))).then(snap => {
+    list.innerHTML = "";
+    if (snap.empty) {
+      list.innerHTML = '<div style="color:#aaa;text-align:center;padding:40px;background:white;border-radius:14px;">No boards found.</div>';
+      return;
+    }
+    snap.forEach(d => {
+      const data = d.data();
+      const date = data.createdAt?.toDate ? data.createdAt.toDate().toLocaleDateString() : "—";
+      const row = document.createElement("div");
+      row.className = "admin-list-row";
+      row.innerHTML = `
+        <div class="admin-row-icon">📋</div>
+        <div class="admin-row-info">
+          <div class="admin-row-name">${data.name}</div>
+          <div class="admin-row-meta">by ${data.createBy || "unknown"} • ${date}</div>
+        </div>
+        <button class="admin-delete-btn" data-id="${d.id}" data-type="board">🗑 Delete</button>
+      `;
+      row.querySelector(".admin-delete-btn").addEventListener("click", async () => {
+        if (!confirm(`Delete board "${data.name}"? This cannot be undone.`)) return;
+        await deleteDoc(doc(db, "boards", d.id));
+        showToast("🗑️ Board deleted.");
+        loadAdminBoards();
+      });
+      list.appendChild(row);
+    });
+  });
+}
+
+function loadAdminThreads() {
+  const list = document.getElementById("adminThreadsList");
+  if (!list) return;
+  list.innerHTML = '<div style="color:#bbb;font-size:13px;text-align:center;padding:20px;">Loading...</div>';
+
+  getDocs(query(collection(db, "threads"), orderBy("createdAt", "desc"))).then(async snap => {
+    list.innerHTML = "";
+    if (snap.empty) {
+      list.innerHTML = '<div style="color:#aaa;text-align:center;padding:40px;background:white;border-radius:14px;">No threads found.</div>';
+      return;
+    }
+
+    // Get all boards to show board name
+    const boardsSnap = await getDocs(collection(db, "boards"));
+    const boardMap = {};
+    boardsSnap.forEach(b => { boardMap[b.id] = b.data().name; });
+
+    snap.forEach(d => {
+      const data = d.data();
+      const date = data.createdAt?.toDate ? data.createdAt.toDate().toLocaleDateString() : "—";
+      const boardName = boardMap[data.board] || "Unknown Board";
+      const isArchived = data.archived === true;
+      const row = document.createElement("div");
+      row.className = "admin-list-row";
+      row.innerHTML = `
+        <div class="admin-row-icon">${isArchived ? "📦" : "💬"}</div>
+        <div class="admin-row-info">
+          <div class="admin-row-name">${data.name} ${isArchived ? '<span style="font-size:11px;background:#fff8e1;color:#f59e0b;border-radius:999px;padding:2px 8px;font-weight:600;margin-left:6px;">Archived</span>' : ""}</div>
+          <div class="admin-row-meta">by ${data.createdBy || "unknown"} • ${date} • <span style="color:#1A5849;font-weight:600;">📋 ${boardName}</span></div>
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0;">
+          ${isArchived ? `<button class="admin-unarchive-btn" data-id="${d.id}" style="width:auto!important;height:36px!important;padding:0 16px!important;border-radius:999px!important;border:none!important;background:#fff8e1!important;color:#b45309!important;font-size:13px!important;font-weight:600;cursor:pointer;margin:0!important;transition:background 0.15s;">↩ Restore</button>` : ""}
+          <button class="admin-delete-btn" data-id="${d.id}">🗑 Delete</button>
+        </div>
+      `;
+      row.querySelector(".admin-delete-btn").addEventListener("click", async () => {
+        if (!confirm(`Delete thread "${data.name}"? All replies will also be deleted.`)) return;
+        const msgsSnap = await getDocs(query(collection(db, "messages"), where("thread", "==", d.id)));
+        msgsSnap.forEach(async m => await deleteDoc(doc(db, "messages", m.id)));
+        const likesSnap = await getDocs(query(collection(db, "likes"), where("threadId", "==", d.id)));
+        likesSnap.forEach(async l => await deleteDoc(doc(db, "likes", l.id)));
+        await deleteDoc(doc(db, "threads", d.id));
+        showToast("🗑️ Thread and all replies deleted.");
+        loadAdminThreads();
+      });
+      if (isArchived) {
+        row.querySelector(".admin-unarchive-btn").addEventListener("click", async () => {
+          await updateDoc(doc(db, "threads", d.id), { archived: false });
+          showToast("✅ Thread restored to feed.");
+          loadAdminThreads();
+        });
+      }
+      list.appendChild(row);
+    });
+  });
+}
+
+function loadAdminStats() {
+  const grid = document.getElementById("adminStatsGrid");
+  if (!grid) return;
+  grid.innerHTML = '<div style="color:#bbb;font-size:13px;text-align:center;padding:20px;grid-column:1/-1;">Loading...</div>';
+
+  Promise.all([
+    getDocs(collection(db, "boards")),
+    getDocs(collection(db, "threads")),
+    getDocs(collection(db, "messages")),
+    getDocs(collection(db, "users")),
+    getDocs(collection(db, "likes")),
+    getDocs(collection(db, "savedThreads"))
+  ]).then(([boards, threads, messages, users, likes, saved]) => {
+    const stats = [
+      { icon: "📋", label: "Total Boards",   value: boards.size },
+      { icon: "💬", label: "Total Threads",  value: threads.size },
+      { icon: "✉️",  label: "Total Replies",  value: messages.size },
+      { icon: "👥", label: "Total Users",    value: users.size },
+      { icon: "❤️", label: "Total Likes",    value: likes.size },
+      { icon: "🔖", label: "Saved Threads",  value: saved.size }
+    ];
+    grid.innerHTML = "";
+    stats.forEach(s => {
+      const card = document.createElement("div");
+      card.className = "profile-stat-card";
+      card.style.cssText = "padding:24px 16px;";
+      card.innerHTML = `
+        <div style="font-size:28px;margin-bottom:6px;">${s.icon}</div>
+        <div class="profile-stat-num">${s.value}</div>
+        <div class="profile-stat-label">${s.label}</div>
+      `;
+      grid.appendChild(card);
+    });
+  });
+}
+
+function loadAdminUsers() {
+  const list = document.getElementById("adminUsersList");
+  if (!list) return;
+  list.innerHTML = '<div style="color:#bbb;font-size:13px;text-align:center;padding:20px;">Loading...</div>';
+
+  getDocs(query(collection(db, "users"), orderBy("joinedAt", "desc"))).then(snap => {
+    list.innerHTML = "";
+    if (snap.empty) {
+      list.innerHTML = '<div style="color:#aaa;text-align:center;padding:40px;background:white;border-radius:14px;">No users found.</div>';
+      return;
+    }
+    snap.forEach(d => {
+      const data = d.data();
+      const date = data.joinedAt?.toDate ? data.joinedAt.toDate().toLocaleDateString() : "—";
+      const profileIcon = data.profileIcon || "default";
+      const ic = iconMap[profileIcon] || iconMap["default"];
+      const row = document.createElement("div");
+      row.className = "admin-list-row";
+      row.innerHTML = `
+        <div class="ub-user-card-avatar-circle ${ic.gradientClass}" style="width:40px;height:40px;font-size:18px;flex-shrink:0;">${ic.emoji}</div>
+        <div class="admin-row-info">
+          <div class="admin-row-name">${data.username || "—"}</div>
+          <div class="admin-row-meta">${data.email || "—"} • Joined ${date}</div>
+        </div>
+      `;
+      list.appendChild(row);
+    });
+  });
+}
+
+let _adminInitialized = false;
+
+function initAdminPanel() {
+  // Populate admin name
+  getDocs(query(collection(db, "users"), where("uid", "==", currentUser.uid))).then(snap => {
+    const uname = !snap.empty ? (snap.docs[0].data().username || currentUser.email.split("@")[0]) : currentUser.email.split("@")[0];
+    const adminHiText = document.getElementById("adminHiText");
+    const adminSideUsername = document.getElementById("adminSideUsername");
+    if (adminHiText) adminHiText.textContent = "Hi, " + uname + "!";
+    if (adminSideUsername) adminSideUsername.textContent = uname;
+  });
+
+  // Sync notif badge
+  const mainBadge = document.getElementById("ubNotifBadge");
+  const adminBadge = document.getElementById("adminNotifBadge");
+  if (adminBadge && mainBadge) {
+    adminBadge.textContent = mainBadge.textContent;
+    adminBadge.style.display = mainBadge.style.display;
+  }
+
+  // Default: show stats
+  showAdminPanel("adminPanelStats");
+  loadAdminStats();
+
+  if (_adminInitialized) return;
+  _adminInitialized = true;
+
+  // Sidebar nav
+  document.getElementById("adminManageBoardsBtn")?.addEventListener("click", () => { showAdminPanel("adminPanelBoards"); loadAdminBoards(); });
+  document.getElementById("adminManageThreadsBtn")?.addEventListener("click", () => { showAdminPanel("adminPanelThreads"); loadAdminThreads(); });
+  document.getElementById("adminViewStatsBtn")?.addEventListener("click", () => { showAdminPanel("adminPanelStats"); loadAdminStats(); });
+  document.getElementById("adminManageUsersBtn")?.addEventListener("click", () => { showAdminPanel("adminPanelUsers"); loadAdminUsers(); });
+  document.getElementById("adminGoBoards")?.addEventListener("click", () => show("userboardScreen"));
+  document.getElementById("adminGoCollections")?.addEventListener("click", () => { show("collectionsScreen"); loadCollectionsScreen(); });
+  document.getElementById("adminGoProfile")?.addEventListener("click", () => { show("profileScreen"); loadProfile(); });
+  document.getElementById("adminNotifBtn")?.addEventListener("click", () => show("notifScreen"));
 }

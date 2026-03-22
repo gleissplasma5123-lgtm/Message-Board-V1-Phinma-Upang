@@ -422,6 +422,9 @@
           <button class="ub-side-btn" id="colGoProfile">
             <span class="ub-side-icon">👤</span> My Profile
           </button>
+          <button class="ub-side-btn hidden" id="colGoAdmin">
+            <span class="ub-side-icon">⚙</span> Admin Panel
+          </button>
         </div>
         <div class="ub-user-card">
           <div class="ub-user-card-avatar-circle" id="colSideAvatar">U</div>
@@ -455,17 +458,98 @@
   </div>
 
   <!-- ADMIN -->
-  <div class="screen-page hidden" id="adminScreen">
-    <div class="sp-navbar">
-      <button class="sp-back-btn" id="backFromAdmin">← Back</button>
-      <span class="sp-title">Admin Dashboard</span>
-    </div>
-    <div class="sp-body">
-      <div class="sp-admin-grid">
-        <button class="sp-admin-card" id="viewStatsBtn">📊<span>View Stats</span></button>
-        <button class="sp-admin-card" id="manageUsersBtn">👥<span>Manage Users</span></button>
-        <button class="sp-admin-card" id="manageBoardsBtn">📋<span>Manage Boards</span></button>
+  <div id="adminScreen" class="hidden" style="width:100vw;height:100vh;margin-left:calc(50% - 50vw);background:#f0f4f3;display:flex;flex-direction:column;overflow:hidden;">
+    <div class="ub-navbar">
+      <div class="ub-navbar-left">
+        <button class="sp-back-btn" id="backFromAdmin">← Back</button>
       </div>
+      <div class="ub-navbar-center">
+        <div class="ub-nav-info" style="align-items:center;">
+          <span class="ub-nav-title">PHINMA</span>
+          <span class="ub-nav-subtitle">University of Pampanga</span>
+        </div>
+      </div>
+      <div class="ub-navbar-right">
+        <div class="ub-notif-wrap">
+          <button class="ub-icon-btn" id="adminNotifBtn">🔔</button>
+          <span class="ub-badge" id="adminNotifBadge" style="display:none;">0</span>
+        </div>
+        <span class="ub-hi-text" id="adminHiText">Hi, admin!</span>
+      </div>
+    </div>
+    <div class="ub-body">
+      <aside class="ub-sidebar">
+        <div class="ub-sidebar-section">
+          <div class="ub-sidebar-label">Navigation</div>
+          <button class="ub-side-btn" id="adminGoBoards"><span class="ub-side-icon">🏠</span> Message Boards</button>
+          <button class="ub-side-btn" id="adminGoCollections"><span class="ub-side-icon">🚀</span> Collections</button>
+          <button class="ub-side-btn" id="adminGoProfile"><span class="ub-side-icon">👤</span> My Profile</button>
+        </div>
+        <div class="ub-sidebar-section">
+          <div class="ub-sidebar-label">Admin Tools</div>
+          <button class="ub-side-btn" id="adminViewStatsBtn"><span class="ub-side-icon">📊</span> View Stats</button>
+          <button class="ub-side-btn" id="adminManageUsersBtn"><span class="ub-side-icon">👥</span> Manage Users</button>
+          <button class="ub-side-btn" id="adminManageBoardsBtn"><span class="ub-side-icon">📋</span> Manage Boards</button>
+          <button class="ub-side-btn" id="adminManageThreadsBtn"><span class="ub-side-icon">💬</span> Manage Threads</button>
+        </div>
+        <div class="ub-user-card">
+          <div class="ub-user-card-avatar-circle" id="adminSideAvatar">🔥</div>
+          <div class="ub-user-card-info">
+            <div class="ub-user-card-name" id="adminSideUsername">Admin</div>
+          </div>
+        </div>
+      </aside>
+      <main class="ub-main">
+
+        <!-- Manage Boards Panel -->
+        <div id="adminPanelBoards">
+          <div class="ub-banner" style="margin-bottom:24px;">
+            <div class="ub-banner-text">
+              <div class="ub-banner-greeting">📋 Manage Boards</div>
+              <div class="ub-banner-sub">View and delete boards from the system</div>
+            </div>
+            <div class="ub-banner-art">🗂️</div>
+          </div>
+          <div id="adminBoardsList" style="display:flex;flex-direction:column;gap:10px;"></div>
+        </div>
+
+        <!-- Manage Threads Panel -->
+        <div id="adminPanelThreads" style="display:none;">
+          <div class="ub-banner" style="margin-bottom:24px;">
+            <div class="ub-banner-text">
+              <div class="ub-banner-greeting">💬 Manage Threads</div>
+              <div class="ub-banner-sub">View and delete threads from the system</div>
+            </div>
+            <div class="ub-banner-art">🗑️</div>
+          </div>
+          <div id="adminThreadsList" style="display:flex;flex-direction:column;gap:10px;"></div>
+        </div>
+
+        <!-- Stats Panel -->
+        <div id="adminPanelStats" style="display:none;">
+          <div class="ub-banner" style="margin-bottom:24px;">
+            <div class="ub-banner-text">
+              <div class="ub-banner-greeting">📊 System Stats</div>
+              <div class="ub-banner-sub">Overview of platform activity</div>
+            </div>
+            <div class="ub-banner-art">📈</div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;" id="adminStatsGrid"></div>
+        </div>
+
+        <!-- Manage Users Panel -->
+        <div id="adminPanelUsers" style="display:none;">
+          <div class="ub-banner" style="margin-bottom:24px;">
+            <div class="ub-banner-text">
+              <div class="ub-banner-greeting">👥 Manage Users</div>
+              <div class="ub-banner-sub">View all registered users</div>
+            </div>
+            <div class="ub-banner-art">👤</div>
+          </div>
+          <div id="adminUsersList" style="display:flex;flex-direction:column;gap:10px;"></div>
+        </div>
+
+      </main>
     </div>
   </div>
 
