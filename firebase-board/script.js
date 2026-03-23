@@ -46,14 +46,15 @@ const db = getFirestore(app);
 
 async function uploadToImageKit(file) {
   try {
-      // 🔑 Get auth from Vercel
-      const authRes = await fetch("https://firebase-board.vercel.app/api/auth");
-      const auth = await authRes.json();
+    // 🔑 Get auth from SAME Vercel app
+    const authRes = await fetch("/api/auth");
+    const auth = await authRes.json();
 
     const formData = new FormData();
     formData.append("file", file);
     formData.append("fileName", Date.now() + "_" + file.name);
-    formData.append("publicKey", auth.publicKey);
+
+    formData.append("publicKey", "public_isps5my0lucp46J/DyUpeaPZNL0="); // 👈 IMPORTANT
     formData.append("signature", auth.signature);
     formData.append("expire", auth.expire);
     formData.append("token", auth.token);
