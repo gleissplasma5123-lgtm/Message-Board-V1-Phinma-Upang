@@ -47,7 +47,7 @@ const db = getFirestore(app);
 async function uploadToImageKit(file) {
   try {
       // 🔑 Get auth from Vercel
-      const authRes = await fetch("https://your-project.vercel.app/api/auth");
+      const authRes = await fetch("https://firebase-board.vercel.app/api/auth");
       const auth = await authRes.json();
 
     const formData = new FormData();
