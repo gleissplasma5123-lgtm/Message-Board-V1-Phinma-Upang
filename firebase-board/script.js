@@ -45,17 +45,38 @@ const db = getFirestore(app);
 /* ================= IMAGEKIT UPLOAD ================= */
 
 async function uploadToImageKit(file) {
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("fileName", file.name);
-  const res = await fetch("https://upload.imagekit.io/api/v1/files/upload", {
-    method: "POST",
-    headers: { Authorization: "Basic " + btoa("public_YJcnOCqlESuiLxcybkWCsh5j+Ms=:") },
-    body: formData
-  });
-  const data = await res.json();
-  if (!data.url) { console.error("ImageKit upload failed", data); return null; }
-  return data.url;
+  try {
+      // 🔑 Get auth from Vercel
+      const authRes = await fetch("https://your-project.vercel.app/api/auth");
+      const auth = await authRes.json();
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("fileName", Date.now() + "_" + file.name);
+    formData.append("publicKey", auth.publicKey);
+    formData.append("signature", auth.signature);
+    formData.append("expire", auth.expire);
+    formData.append("token", auth.token);
+
+    const res = await fetch("https://upload.imagekit.io/api/v1/files/upload", {
+      method: "POST",
+      body: formData
+    });
+
+    const data = await res.json();
+
+    if (!data.url) {
+      console.error(data);
+      alert("Upload failed");
+      return null;
+    }
+
+    return data.url;
+
+  } catch (err) {
+    console.error(err);
+    return null;
+  }
 }
 
 /* ================= ADMIN ================= */
